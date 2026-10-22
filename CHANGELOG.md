@@ -5,7 +5,9 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
-Nothing yet.
+### Documentation
+- CLAUDE.md: the step-by-step develop workflow for every change (check, pull safely, build,
+  commit, push to `develop`, confirm the hash) and the "Publish this version" release rule.
 
 ## [1.0.0] — 2026-10-21
 

@@ -2,27 +2,47 @@
 
 These apply to every session working on this project. Details are in DEVELOPMENT.md.
 
-## Branches and publishing
-- Work on `develop` (or a `feature/*` branch made from it). Never commit directly to `main`.
-- After finishing a requested change: verify it, run `npm run typecheck` and `npm run build`, make a
-  meaningful commit, push to `origin develop`, and report the commit hash and branch.
-- If a push fails, say so plainly and leave the local commit in place.
-- **Never deploy to production without the owner's explicit approval.** Approving a feature or design
-  is not approval to publish it. Releasing = a pull request `develop` → `main`, a summary of what it
-  contains, passing checks, then an explicit "yes, publish" before merging.
-- Merge releases with a merge commit; don't squash history without permission.
-- Tag each approved release on `main` (`v1.1.0`, …) and add it to CHANGELOG.md. Never reuse a tag.
+Repository: https://github.com/zhinuowang/little-moments.git (remote `origin`, SSH:
+`git@github.com:zhinuowang/little-moments.git`). Live site: https://zhinuowang.github.io/little-moments/
+— deployed only from `main`. `v1.0.0` is the owner's original approved baseline.
+
+## Every requested change — follow these steps automatically
+1. **Work on `develop`**, never `main`. (A short-lived `feature/*` branch made from `develop` is fine
+   for bigger work; it merges back into `develop`.)
+2. **Before editing**, check the current branch (`git branch --show-current`), the working tree
+   (`git status`), and remote changes (`git fetch origin`). Bring `develop` up to date safely with
+   `git pull --ff-only origin develop`. Never discard or overwrite local work to do so — if the pull
+   can't fast-forward or there are uncommitted changes you didn't make, stop and ask.
+3. Make the requested change and **preserve unrelated features**.
+4. Run the checks: `npm run typecheck` and `npm run build` (plus anything relevant to the change).
+5. **Commit** the finished change with a meaningful message (one logical change per commit).
+6. **Push to GitHub `develop`**: `git push origin develop`.
+7. **Confirm** the push succeeded (e.g. `git status -sb` shows `develop...origin/develop` level, or
+   `git ls-remote origin develop` matches) and report the commit hash and branch.
+   If the push fails, say so clearly, leave the local commit in place, and never claim the
+   change is synchronized.
+
+## Publishing — only when the owner says "Publish this version"
+- Prepare a pull request from `develop` into `main`. Without GitHub CLI, give the owner the compare
+  link https://github.com/zhinuowang/little-moments/compare/main...develop and summarize every commit
+  and file it contains, with the CI result.
+- **Ask for explicit approval and wait.** Do not merge or deploy until the owner approves that
+  specific release. Approving a feature or design is not approval to publish it.
+- Merge with a merge commit (no squash). Deployment to the live site happens only from `main`.
+- After the release, tag `main` with the next version (`v1.1.0`, …) and add it to CHANGELOG.md.
 
 ## Never
-- Force-push (`git push --force` / `--force-with-lease`) or rewrite published history.
-- `git reset --hard` on a shared branch to erase commits.
-- Delete or move version tags, branches or the repository.
+- Merge `develop` into `main` or deploy the live site without explicit approval.
+- Force-push (`--force` / `--force-with-lease`), rewrite published history, or `git reset --hard`
+  to erase commits.
+- Delete or move version tags (`v1.0.0` must always point at the original approved version),
+  delete branches, or recreate/overwrite the repository.
 - Commit secrets, `.env` files, backup files, diary entries or user photos.
 
 ## Rolling back
 Restore an earlier version with a new commit (`git restore --source=<tag>` or `git revert`) on a
-branch, confirm it builds, open a PR into `main`, and ask before deploying. Explain what will be
-undone first.
+branch, confirm it builds, explain what will be undone, open a PR into `main`, and ask before
+deploying. History is never deleted.
 
 ## Design and data
 - Preserve the approved visual design, Momo's art and animations, and all existing features unless
