@@ -36,9 +36,13 @@ China Telecom / China Mobile home networks. Re-run any time with `npm run check:
 
 - Lives in **Settings → Account & sync** as a small sheet. The home page, mood check-in, ideas,
   rituals, diary and plans never require it, and never show a login wall.
-- Order: email field first → **Send code** → one 6-digit box (`inputmode="numeric"`,
-  `autocomplete="one-time-code"`, paste-friendly) → **Resend** after 60 s. Then a quiet
-  "or" line and **Continue with Google** underneath.
+- Order: email field first → **Send verification code** → one 6-digit box (`inputmode="numeric"`,
+  `autocomplete="one-time-code"`). Pasting "123 456" or "123-456" works; letters are refused with a
+  hint; the 6th digit signs in automatically (`verifyOtp({ email, token, type: 'email' })`, the
+  same for first-time and returning addresses). **New code** after 60 s, or after Supabase's rate
+  limit. Then a quiet "or" line and **Continue with Google** underneath.
+- No confirmation-link step: both the *Confirm signup* and *Magic Link* templates show
+  `{{ .Token }}`, so "Confirm email" stays on and the code itself is the confirmation.
 - Before leaving for Google, the app checks in the background whether Google answers (≈3 s). If it
   doesn't, the button explains gently "Google isn't reachable on this network — the email code
   works everywhere" instead of sending the person to a dead page.
@@ -53,6 +57,14 @@ China Telecom / China Mobile home networks. Re-run any time with `npm run check:
   (subject: `Little Moments 登录验证码 · Your sign-in code`). The app calls `signInWithOtp` then
   `verifyOtp({ type: 'email' })`, so Supabase sends "Confirm signup" to new addresses and
   "Magic Link" to returning ones — both must show `{{ .Token }}`.
+
+## Custom SMTP (Resend) — needed for the code email
+
+Supabase only lets templates be edited once custom SMTP is set. Resend settings (from Resend's
+Supabase guide): host `smtp.resend.com`, port `465`, username `resend`, password = a Resend API key
+(entered only in the Supabase dashboard). Until a domain is verified, Resend sends only from
+`onboarding@resend.dev` and only to the Resend account's own address — enough to test the real
+code flow, not enough for other people's inboxes.
 
 ## Email delivery (needed before the public release, not for development)
 

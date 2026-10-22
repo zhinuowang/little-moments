@@ -10,8 +10,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const RESEND_AFTER = 60
 
 /**
- * Optional sign-in, in a small sheet. Step 1: an email. Step 2: the 6-digit code from that
- * email — or, while the project still uses Supabase's default email, the link in it.
+ * Optional sign-in, in a small sheet: an email, then the 6-digit code Supabase emails
+ * (signInWithOtp → verifyOtp). Works the same for a first visit and a returning one.
  * Google sits underneath only when it's switched on and reachable from this network.
  */
 export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -24,6 +24,7 @@ export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => v
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<AuthError | 'need-email' | null>(null)
   const [wait, setWait] = useState(0)
+  const [digitsOnly, setDigitsOnly] = useState(false)
   const [google, setGoogle] = useState<'checking' | 'yes' | 'off' | 'unreachable'>('checking')
   const codeRef = useRef<HTMLInputElement>(null)
 
@@ -51,19 +52,29 @@ export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => v
     setBusy(true); setError(null)
     const err = await auth.sendLink(email)
     setBusy(false)
-    if (err) { setError(err); return }
+    if (err) { setError(err); if (err === 'rate-limit') setWait(RESEND_AFTER); return }
     play('pop')
     setStep('code'); setWait(RESEND_AFTER); setCode('')
     setTimeout(() => codeRef.current?.focus(), 80)
   }
 
-  const verify = async (e?: FormEvent) => {
+  const verify = async (e?: FormEvent, value = code) => {
     e?.preventDefault()
-    if (code.length !== 6) return
+    if (value.length !== 6 || busy) return
     setBusy(true); setError(null)
-    const err = await auth.verifyCode(email, code)
+    const err = await auth.verifyCode(email, value)
     setBusy(false)
-    if (err) setError(err)
+    if (err) { setError(err === 'expired' ? 'bad-code' : err); setCode(''); setTimeout(() => codeRef.current?.focus(), 50) }
+  }
+
+  // digits only: spaces and dashes from a pasted "123 456" are ignored, anything else is refused
+  const typeCode = (raw: string) => {
+    const refused = /[^\d\s-]/.test(raw)
+    setDigitsOnly(refused)
+    if (refused) return
+    const next = raw.replace(/\D/g, '').slice(0, 6)
+    setCode(next); setError(null)
+    if (next.length === 6) void verify(undefined, next)
   }
 
   const errorText = error && t(`auth.err.${error}` as Key)
@@ -96,11 +107,11 @@ export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => v
               ref={codeRef}
               className="field text-center font-[family-name:var(--font-type)] text-[24px] tracking-[0.5em]"
               inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6}
-              value={code} onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(null) }}
-              placeholder="······" aria-describedby="auth-code-hint"
+              value={code} onChange={(e) => typeCode(e.target.value)} disabled={busy}
+              placeholder="······" aria-describedby="auth-code-hint" aria-invalid={!!error || digitsOnly}
             />
           </label>
-          <p id="auth-code-hint" className="text-[13px] leading-relaxed text-muted">{t('auth.codeHint')}</p>
+          <p id="auth-code-hint" className="text-[13px] leading-relaxed text-muted">{digitsOnly ? t('auth.digitsOnly') : t('auth.codeHint')}</p>
           {errorText && <p role="alert" className="text-[13px] text-ink">{errorText}</p>}
           <button type="submit" className="btn btn-primary w-full" disabled={busy || code.length !== 6}>{busy ? t('auth.checking') : t('auth.verify')}</button>
           <div className="flex flex-wrap items-center justify-between gap-2 text-[13px]">

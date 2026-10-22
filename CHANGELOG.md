@@ -5,6 +5,11 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Sign-in — six-digit code first
+- The email step now says **Send verification code**; the code box accepts a pasted "123 456",
+  refuses letters with a hint, signs in on the 6th digit, and explains wrong/expired codes and
+  Supabase's rate limit in EN / 中文. The sign-in link is no longer mentioned.
+
 ### Sign-in — Phase 2 (optional; guest stays the default)
 - Settings → **Account** (only in builds with Supabase settings): sign in with an email, or stay a
   guest. Signing in or out never changes the diary, photos or plans on the device; cloud sync is
