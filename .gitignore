@@ -1,0 +1,21 @@
+# dependencies and build output
+node_modules/
+dist/
+dist-pages/
+*.tsbuildinfo
+.vite/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# personal data: backup files exported from the app contain diary pages and photos
+little-moments-backup-*.json
+*.backup.json
+
+# local tool and OS files
+.claude/settings.local.json
+.DS_Store
+*.log
+npm-debug.log*

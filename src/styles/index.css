@@ -1,0 +1,337 @@
+@import "tailwindcss";
+
+/*
+  English is Gamja Flower (OFL): rounded, even, single-storey "a", no hooks — the
+  closest match to Xiaolai's soft hand. It draws small, so size-adjust lifts it to sit
+  level with the Chinese glyphs. Latin letters only: Chinese, and the digits (Gamja's bare
+  "1" reads like an "I"), fall to Xiaolai.
+*/
+@font-face {
+  font-family: "LM Hand";
+  src: url("../../node_modules/@fontsource/gamja-flower/files/gamja-flower-latin-400-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 118%;
+  unicode-range: U+0000-002F, U+003A-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+  Little Moments — design tokens
+  A black-and-white sketchbook: paper, ink, and a little grey. No colour.
+*/
+@theme {
+  --color-bg: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-ink: #1F1F1F;
+  --color-ink-2: #3F3F3F;
+  --color-muted: #8A8A86;
+  --color-faint: #B8B8B3;
+  --color-line: #E6E6E1;
+  --color-mist: #F0F0EC;
+
+  /* the old accent names now point at greys, so nothing turns colourful by accident */
+  --color-blue: #F0F0EC;
+  --color-butter: #F0F0EC;
+  --color-pink: #F0F0EC;
+  --color-sage: #F0F0EC;
+
+  /*
+    The Chinese interface: Xiaolai SC (小赖) draws the Chinese, and Gamja Flower
+    ("LM Hand", above) the Latin letters mixed into it — both soft and even-weighted.
+    The English interface swaps in Comic Sans MS (see html:lang(en) below).
+    System fonts are only a loading fallback.
+    Courier Prime is used only for tiny typed labels on keepsake cards.
+  */
+  --font-sans: "LM Hand", "Xiaolai SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, sans-serif;
+  --font-hand: var(--font-sans);
+  --font-serif: var(--font-sans);
+  --font-type: "Courier Prime", "Xiaolai SC", ui-monospace, monospace;
+
+  --radius-card: 20px;
+  --shadow-float: none;
+
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/*
+  English interface: Comic Sans MS from the device when it's installed (macOS, Windows, iOS
+  have it). Otherwise Short Stack — rounded, hand-lettered, SIL OFL — self-hosted and only
+  downloaded when Comic Sans is missing. Chinese characters (journal text typed in Chinese)
+  still fall through to Xiaolai. The Chinese interface keeps the stack above unchanged.
+*/
+html:lang(en) {
+  --font-sans: "Comic Sans MS", "Short Stack", "Xiaolai SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", cursive;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    background: var(--color-bg);
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.65;
+    font-synthesis: none; /* never fake-bold the Chinese face */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :lang(zh) body { letter-spacing: 0.03em; line-height: 1.75; }
+  h1, h2, h3 { font-family: var(--font-hand); font-weight: 500; letter-spacing: 0; line-height: 1.25; color: var(--color-ink); }
+  :lang(zh) h1, :lang(zh) h2, :lang(zh) h3 { letter-spacing: 0.05em; }
+  .font-hand { font-family: var(--font-hand); }
+  button { cursor: pointer; }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+    border-radius: 10px;
+  }
+  ::selection { background: #E6E6E1; }
+
+  /*
+    The dried-fish cursor (小鱼干). Only for a real mouse/trackpad — touch devices never see it.
+    Hotspot is the fish's nose (4,4). SVG first, PNG fallback, then the system cursor.
+    Text fields keep the text cursor; utilities like cursor-grab still win (they're in a later layer).
+  */
+  @media (hover: hover) and (pointer: fine) {
+    html, body {
+      cursor: url("/cursor-fish.svg") 4 4, url("/cursor-fish.png") 4 4, auto;
+    }
+    a, button, summary, select, label[for], [role="button"], [role="tab"], [role="radio"], [role="switch"], [role="gridcell"] {
+      cursor: url("/cursor-fish.svg") 4 4, url("/cursor-fish.png") 4 4, pointer;
+    }
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), textarea, [contenteditable="true"] {
+      cursor: text;
+    }
+    button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+  }
+}
+
+@layer components {
+  /* a card is just a hand-inked outline on white */
+  .card {
+    background: var(--color-surface);
+    border: 2px solid var(--color-ink);
+    border-radius: 22px 18px 24px 19px / 19px 24px 18px 22px;
+  }
+  .well {
+    background: var(--color-surface);
+    border-radius: 16px;
+  }
+
+  /* buttons: one dark primary, everything else quiet */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    padding: 0 1.25rem;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-ink);
+    background: var(--color-surface);
+    transition: transform 0.2s var(--ease-soft), background-color 0.2s, opacity 0.2s;
+    user-select: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn { background: transparent; border: 1.5px solid var(--color-ink); font-family: var(--font-hand); font-size: 15px; font-weight: 500; }
+  .btn:hover { background: var(--color-surface); }
+  .btn-primary { background: var(--color-ink); color: #fff; }
+  .btn-primary:hover { background: #000; }
+  .btn-quiet {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-muted);
+    padding: 0 0.6rem;
+    font-weight: 500;
+  }
+  .btn-quiet:hover { color: var(--color-ink); }
+  .btn-danger { background: var(--color-ink); border-color: var(--color-ink); color: #FFFFFF; }
+  .btn-danger:disabled { background: transparent; color: var(--color-faint); border-color: var(--color-line); }
+  .btn-sm { min-height: 36px; padding: 0 0.95rem; font-size: 14px; }
+  .btn-quiet:hover { background: transparent; }
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    color: var(--color-ink);
+    transition: background-color 0.2s;
+  }
+  .icon-btn:hover { background: var(--color-mist); }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 34px;
+    padding: 0 0.85rem;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--color-ink-2);
+    background: transparent;
+    border: 1.5px solid var(--color-line);
+    font-family: var(--font-hand);
+    font-size: 14px;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .chip:hover { border-color: var(--color-ink); }
+  .chip[aria-pressed="true"], .chip[aria-checked="true"], .chip[aria-selected="true"] {
+    background: var(--color-ink);
+    color: #fff;
+  }
+
+  /* text tabs with a small hand-drawn underline */
+  .tab {
+    position: relative;
+    padding: 0.35rem 0.1rem;
+    font-family: var(--font-hand);
+    font-size: 16px;
+    color: var(--color-muted);
+    transition: color 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--color-ink); }
+  .tab[aria-selected="true"] { color: var(--color-ink); font-weight: 500; }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    bottom: -2px;
+    height: 6px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 6' preserveAspectRatio='none'><path d='M2 4 C 18 1, 38 5, 58 2' stroke='%23242424' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>") no-repeat center / 100% 100%;
+  }
+
+  .field {
+    width: 100%;
+    border: 1.5px solid var(--color-line);
+    background: var(--color-surface);
+    border-radius: 14px;
+    padding: 0.65rem 0.85rem;
+    color: var(--color-ink);
+    font: inherit;
+    transition: border-color 0.2s;
+  }
+  .field::placeholder { color: var(--color-faint); }
+  .field:focus { outline: none; border-color: var(--color-ink); }
+
+  .label { display: block; margin-bottom: 0.35rem; font-family: var(--font-hand); font-size: 14px; color: var(--color-ink-2); }
+  .eyebrow { font-family: var(--font-hand); font-size: 13px; letter-spacing: 0.06em; color: var(--color-muted); }
+  :lang(zh) .eyebrow { letter-spacing: 0.12em; }
+
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  .sr-only-focusable:not(:focus) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  }
+}
+
+/* —— gentle motion; all of it switches off with reduced motion —— */
+@keyframes lm-breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.012); } }
+@keyframes lm-blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes lm-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+@keyframes lm-wave { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(10deg); } }
+@keyframes lm-hop { 0%, 70%, 100% { transform: translateY(0); } 80% { transform: translateY(-6px); } 90% { transform: translateY(0); } }
+@keyframes lm-tilt { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(-9deg); } }
+@keyframes lm-steam { 0% { opacity: 0; transform: translateY(3px); } 40% { opacity: 0.7; } 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes lm-zzz { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(8px, -16px); } }
+@keyframes lm-twinkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes lm-stamp { 0%, 45%, 100% { transform: translateY(-10px); } 60%, 75% { transform: translateY(2px); } }
+@keyframes lm-wiggle { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-5deg); } 70% { transform: rotate(5deg); } }
+
+.anim-breathe { animation: lm-breathe 4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.anim-blink { animation: lm-blink 5.2s infinite; transform-box: fill-box; transform-origin: center; }
+.anim-sway { animation: lm-sway 5s ease-in-out infinite; }
+.anim-wave { animation: lm-wave 1.6s ease-in-out infinite; }
+.anim-hop { animation: lm-hop 2.8s ease-in-out infinite; }
+.anim-tilt { animation: lm-tilt 4s ease-in-out infinite; }
+.anim-steam { animation: lm-steam 2.6s ease-out infinite; }
+.anim-zzz { animation: lm-zzz 3.2s ease-out infinite; }
+.anim-twinkle { animation: lm-twinkle 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.anim-stamp { animation: lm-stamp 2s ease-in-out infinite; }
+.anim-wiggle { animation: lm-wiggle 0.6s ease-in-out 1; transform-box: fill-box; transform-origin: 50% 100%; }
+
+/* the draw button: a small lift, a wiggling capsule, a doodled sparkle */
+.draw-btn { position: relative; overflow: visible; transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1), background-color 0.2s, opacity 0.2s; }
+.draw-btn-icon { transition: transform 0.22s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.draw-btn-spark {
+  position: absolute; top: -11px; right: -9px; width: 16px; height: 16px;
+  opacity: 0; transform: scale(0.4) rotate(-20deg);
+  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+}
+.draw-btn-spark--small { top: auto; right: auto; bottom: -7px; left: -6px; width: 9px; height: 9px; transition-delay: 0.05s; }
+@media (hover: hover) {
+  .draw-btn:not(:disabled):hover { transform: translateY(-2.5px) scale(1.02); }
+  .draw-btn:not(:disabled):hover .draw-btn-icon { animation: lm-capsule-wiggle 0.5s ease-in-out 1; }
+  .draw-btn:not(:disabled):hover .draw-btn-spark { opacity: 1; transform: scale(1) rotate(0); }
+}
+.draw-btn:focus-visible .draw-btn-spark { opacity: 1; transform: scale(1) rotate(0); }
+.draw-btn:not(:disabled):active, .draw-btn.is-pressed { transform: translateY(1px) scale(0.96); transition-duration: 0.08s; }
+.draw-btn:disabled { opacity: 0.55; cursor: progress; }
+.draw-btn[aria-busy="true"] .draw-btn-icon { animation: lm-capsule-spin 1.2s linear infinite; }
+@keyframes lm-capsule-wiggle { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-16deg); } 65% { transform: rotate(10deg); } }
+@keyframes lm-capsule-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-full) .draw-btn, html:not(.motion-full) .draw-btn-spark { transition: opacity 0.2s; }
+  html:not(.motion-full) .draw-btn:hover, html:not(.motion-full) .draw-btn.is-pressed { transform: none !important; }
+  html:not(.motion-full) .draw-btn-icon { animation: none !important; }
+}
+html.motion-reduce .draw-btn:hover, html.motion-reduce .draw-btn.is-pressed { transform: none !important; }
+html.motion-reduce .draw-btn-icon { animation: none !important; }
+
+/* the capsule machine's knob: turn it to draw */
+.machine-knob { outline: none; transform-box: fill-box; transform-origin: center; transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.machine-knob .knob-ring { opacity: 0; transition: opacity 0.2s; }
+.machine-knob:hover { transform: rotate(-12deg) scale(1.05); }
+.machine-knob:hover .knob-ring, .machine-knob:focus-visible .knob-ring { opacity: 1; }
+.machine-knob:active { transform: rotate(-25deg) scale(0.93); transition-duration: 0.08s; }
+.machine-knob.is-busy { cursor: default; }
+.machine-knob.is-busy:hover { transform: none; }
+.machine-knob.is-busy .knob-ring { opacity: 0; }
+
+/* Momo's little live moments */
+@keyframes lm-ear { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-16deg); } 55% { transform: rotate(7deg); } 80% { transform: rotate(-3deg); } }
+@keyframes lm-roll { 0% { transform: translateX(0) rotate(0); } 40% { transform: translateX(-11px) rotate(-120deg); } 75% { transform: translateX(3px) rotate(25deg); } 100% { transform: translateX(0) rotate(0); } }
+@keyframes lm-pat { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(-17px, 6px); } 45% { transform: translate(-13px, 3px); } 60% { transform: translate(-17px, 6px); } }
+@keyframes lm-stretch { 0%, 100% { transform: scale(1, 1); } 35% { transform: scale(0.95, 1.07); } 65% { transform: scale(1.03, 0.98); } }
+@keyframes lm-swipe-l { 0%, 100% { transform: translate(0, 0) rotate(0); } 35% { transform: translate(-10px, -16px) rotate(-30deg); } 55% { transform: translate(-6px, -2px) rotate(-8deg); } }
+@keyframes lm-swipe-r { 0%, 100% { transform: translate(0, 0) rotate(0); } 35% { transform: translate(10px, -16px) rotate(30deg); } 55% { transform: translate(6px, -2px) rotate(8deg); } }
+.anim-swipe-l { animation: lm-swipe-l 0.7s cubic-bezier(0.3, 0.6, 0.3, 1) 1; transform-box: fill-box; transform-origin: 100% 0%; }
+.anim-swipe-r { animation: lm-swipe-r 0.7s cubic-bezier(0.3, 0.6, 0.3, 1) 1; transform-box: fill-box; transform-origin: 0% 0%; }
+.anim-ear { animation: lm-ear 0.55s ease-out 1; }
+.anim-roll { animation: lm-roll 1.1s cubic-bezier(0.3, 0.6, 0.3, 1) 1; transform-box: fill-box; transform-origin: center; }
+.anim-pat { animation: lm-pat 0.9s ease-in-out 1; }
+.anim-stretch { animation: lm-stretch 1.1s ease-in-out 1; }
+
+/* the red seal: the one place red appears in the app */
+@keyframes lm-seal-in {
+  0% { opacity: 0; transform: var(--seal-rot) scale(1.35); }
+  45% { opacity: 1; transform: var(--seal-rot) scale(0.96); }
+  100% { opacity: 1; transform: var(--seal-rot) scale(1); }
+}
+.anim-seal { animation: lm-seal-in 0.42s cubic-bezier(0.3, 0.7, 0.3, 1) 1 both; }
+@keyframes lm-thunk { 0%, 100% { transform: translateY(0); } 35% { transform: translateY(2px) scale(0.995); } }
+.anim-thunk { animation: lm-thunk 0.3s ease-out 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-full) [class*="anim-"] { animation: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not(.motion-full) svg g[style*="transition"] { transition: none !important; }
+}
+html.motion-reduce svg g[style*="transition"] { transition: none !important; }
+html.motion-reduce [class*="anim-"] { animation: none !important; }
