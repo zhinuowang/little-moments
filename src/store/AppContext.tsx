@@ -8,6 +8,8 @@ export interface Toast { id: number; text: string; kind: 'info' | 'error' | 'lov
 
 interface Ctx {
   loaded: boolean
+  /** nothing has ever been saved on this device (no settings, pages or plans) — a first visit */
+  fresh: boolean
   storageOk: boolean
   prefs: Prefs
   setPrefs: (p: Partial<Prefs>) => void
@@ -31,6 +33,7 @@ const byDateDesc = (a: JournalEntry, b: JournalEntry) =>
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState(false)
+  const [fresh, setFresh] = useState(false)
   const [storageOk, setStorageOk] = useState(true)
   const [prefs, setPrefsState] = useState<Prefs>(defaultPrefs)
   const [entries, setEntries] = useState<JournalEntry[]>([])
@@ -53,6 +56,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEntries(e.sort(byDateDesc))
     setPlans(p.sort((a, b) => b.createdAt - a.createdAt))
     setPrefsState({ ...defaultPrefs, ...(pr ?? {}) })
+    setFresh(!pr && e.length === 0 && p.length === 0)
     setLoaded(true)
   }, [])
 
@@ -116,9 +120,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isSaved = useCallback((activityId: string) => plans.some((p) => p.activityId === activityId), [plans])
 
   const value = useMemo<Ctx>(() => ({
-    loaded, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
+    loaded, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
     isSaved, toasts, toast, dismissToast, reload,
-  }), [loaded, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
+  }), [loaded, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

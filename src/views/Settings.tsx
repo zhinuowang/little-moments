@@ -185,7 +185,10 @@ function AccountSection() {
       ) : (
         <>
           <p className="text-[14px] leading-relaxed text-ink-2">{auth.status === 'checking' ? t('settings.accountChecking') : t('settings.guestBody')}</p>
-          <button className="btn mt-4" onClick={() => { play('tap'); setOpen(true) }} disabled={auth.status === 'checking'}>{t('settings.signIn')}</button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn" onClick={() => { play('tap'); setOpen(true) }} disabled={auth.status === 'checking'}>{t('settings.signIn')}</button>
+            <button className="btn btn-quiet" onClick={() => { play('tap'); window.dispatchEvent(new Event('lm-show-welcome')) }} disabled={auth.status === 'checking'}>{t('settings.showWelcome')}</button>
+          </div>
         </>
       )}
       <SignInSheet open={open} onClose={() => setOpen(false)} />

@@ -7,12 +7,19 @@ Status: design approved for Phase 2 on `develop`. Nothing here is live on the pu
 | Way | Role | Works in mainland China? |
 | --- | --- | --- |
 | **Guest** (default) | No sign-in. Everything stays in this browser, exactly like v1.0.0. | Yes — no network needed after the first load |
-| **Email code** (primary) | Type an email, receive a **6-digit code**, type it in. No password, no link to click. | Depends on email delivery to QQ / 163 — to be measured with real inboxes |
+| **Email link** (primary) | Type an email, open the **sign-in link** it receives. No password. | Depends on email delivery to QQ / 163 — to be measured with real inboxes |
 | **Continue with Google** (optional) | One tap where Google is reachable. | **No** — 0 of 8 mainland probes reached `accounts.google.com` (2026-10-22) |
 
-Codes instead of magic links: a code works inside the installed app (a link would open the
-browser instead), works when the email is read on another device, and avoids link-scanning by
-mail providers that can "use up" a link before the person clicks it.
+**Entry flow (2026-10-22 decision):** a first-time visitor sees a welcome screen with Momo and
+two choices — *Continue with Email* or *Continue as Guest*. The choice is remembered on the device
+(`lm-entry`); people who already have data on the device, signed-in people, and builds without
+Supabase settings never see it. Settings → Account → *Show the welcome screen* brings it back.
+
+**Why a token-hash link:** the email links to the app's own address with a one-time `token_hash`;
+only the app's `verifyOtp({ token_hash, type: 'email' })` call signs in. Typing an email signs no
+one in. It works when the link is opened in another browser or a mail app, no session tokens appear
+in the address bar, and mail scanners (Outlook Safe Links, QQ) that pre-open links can't use it up,
+because opening the page alone doesn't verify anything.
 
 ## Measured reachability from mainland China (2026-10-22, Globalping, 8 probes each)
 
@@ -32,31 +39,27 @@ Probes are mostly Tencent / Alibaba cloud and China Unicom backbone networks, no
 broadband, so this is a strong signal rather than a guarantee. Still to try: real devices on
 China Telecom / China Mobile home networks. Re-run any time with `npm run check:china -- <url>`.
 
-## Sign-in screen
+## Sign-in screens
 
-- Lives in **Settings → Account & sync** as a small sheet. The home page, mood check-in, ideas,
-  rituals, diary and plans never require it, and never show a login wall.
-- Order: email field first → **Send verification code** → one 6-digit box (`inputmode="numeric"`,
-  `autocomplete="one-time-code"`). Pasting "123 456" or "123-456" works; letters are refused with a
-  hint; the 6th digit signs in automatically (`verifyOtp({ email, token, type: 'email' })`, the
-  same for first-time and returning addresses). **New code** after 60 s, or after Supabase's rate
-  limit. Then a quiet "or" line and **Continue with Google** underneath.
-- No confirmation-link step: both the *Confirm signup* and *Magic Link* templates show
-  `{{ .Token }}`, so "Confirm email" stays on and the code itself is the confirmation.
-- Before leaving for Google, the app checks in the background whether Google answers (≈3 s). If it
-  doesn't, the button explains gently "Google isn't reachable on this network — the email code
-  works everywhere" instead of sending the person to a dead page.
-- Monochrome, hand-lettered, Momo beside the title, every word in EN and 中文. Google's own "G"
-  mark is shown in its required colours, small; everything else stays black and white.
-- Signing out never deletes anything on the device.
+- **Welcome** (first visit): Momo, "Your little space to unwind ♡", *Continue with Email* (primary)
+  and *Continue as Guest*. Monochrome, hand-lettered, gentle staggered entrance, EN / 中文 switch.
+- **Email**: one field → *Email me a sign-in link* → "Check your inbox ✉" with *Send a new link*
+  (60 s, or after Supabase's rate limit) and *Use another email*. Guests can still go in at any time.
+- **Settings → Account**: the same form in a sheet for guests, plus *Show the welcome screen*;
+  signed-in people see their address and *Sign out* (which keeps everything on the device).
+- Coming back from the link lands on the home page; failures (used / expired link, offline, the
+  email service refusing) show a calm message and nothing local changes. If a session ends on its
+  own, the app carries on as a guest with a gentle note.
+- Google stays optional: shown in the Settings sheet only when enabled in Supabase *and* reachable.
 
-## Email code settings (Supabase → Authentication)
+## Email link settings (Supabase → Authentication)
 
-- Email provider on; **Email OTP length 6**; **Email OTP expiration 600 s** (10 minutes).
-- Templates **Magic Link** and **Confirm signup** both use `supabase/templates/email-code.html`
-  (subject: `Little Moments 登录验证码 · Your sign-in code`). The app calls `signInWithOtp` then
-  `verifyOtp({ type: 'email' })`, so Supabase sends "Confirm signup" to new addresses and
-  "Magic Link" to returning ones — both must show `{{ .Token }}`.
+- Email provider on, **Confirm email on**. The link's lifetime follows "Email OTP Expiration".
+- Templates **Confirm signup** and **Magic Link** both use `supabase/templates/email-link.html`
+  (subject `Little Moments 登录链接 · Your sign-in link`). Its button goes to
+  `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email`; `RedirectTo` is the app's own address
+  (`http://localhost:5173/` in development, `https://zhinuowang.github.io/little-moments/` live),
+  which must be in the Redirect URLs allow-list.
 
 ## Custom SMTP (Resend) — needed for the code email
 

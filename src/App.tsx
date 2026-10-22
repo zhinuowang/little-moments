@@ -1,6 +1,6 @@
 import { MotionConfig } from 'motion/react'
 import { LiveMomo } from './components/momo/LiveMomo'
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Momo } from './components/momo/Momo'
 import { Toasts } from './components/ui/Bits'
 import { BottomNav, LangSwitch, TopNav } from './components/ui/Nav'
@@ -12,6 +12,8 @@ import { navigate, useRoute } from './store/router'
 import { Discover } from './views/Discover'
 import { Home } from './views/Home'
 import { RitualView } from './views/Ritual'
+import { Welcome } from './views/Welcome'
+import { getEntry, setEntry } from './lib/entry'
 
 const Diary = lazy(() => import('./views/Diary').then((m) => ({ default: m.Diary })))
 const Editor = lazy(() => import('./views/Editor').then((m) => ({ default: m.Editor })))
@@ -20,10 +22,25 @@ const Plans = lazy(() => import('./views/Plans').then((m) => ({ default: m.Plans
 const Settings = lazy(() => import('./views/Settings').then((m) => ({ default: m.Settings })))
 
 export default function App() {
-  const { loaded, storageOk, prefs } = useApp()
+  const { loaded, fresh, storageOk, prefs } = useApp()
   const { t } = useI18n()
+  const auth = useAuth()
   const route = useRoute()
   const [section = '', id] = route.path
+
+  // The welcome screen: once for a brand-new visitor, or when asked for in Settings. People who
+  // already use the app (data on this device), signed-in people and builds without cloud sign-in
+  // go straight in.
+  const [entered, setEntered] = useState(() => getEntry() !== null)
+  const [askedForWelcome, setAskedForWelcome] = useState(false)
+  useEffect(() => { if (loaded && !entered && !fresh) { setEntry('guest'); setEntered(true) } }, [loaded, fresh, entered])
+  useEffect(() => { if (auth.status === 'signed-in') { setEntered(true); setAskedForWelcome(false) } }, [auth.status])
+  useEffect(() => {
+    const show = () => { setEntry(null); setAskedForWelcome(true) }
+    window.addEventListener('lm-show-welcome', show)
+    return () => window.removeEventListener('lm-show-welcome', show)
+  }, [])
+  const showWelcome = auth.enabled && loaded && auth.status === 'guest' && (askedForWelcome || (!entered && fresh))
 
   useEffect(() => { window.scrollTo({ top: 0 }) }, [section, id])
 
@@ -46,8 +63,19 @@ export default function App() {
     default: view = <NotFound />
   }
 
+  const motionPref = prefs.motion === 'reduced' ? 'always' : prefs.motion === 'full' ? 'never' : 'user'
+  if (showWelcome) {
+    return (
+      <MotionConfig reducedMotion={motionPref}>
+        <Welcome onEnter={() => { setEntered(true); setAskedForWelcome(false) }} />
+        <Toasts />
+        <AuthArrival />
+      </MotionConfig>
+    )
+  }
+
   return (
-    <MotionConfig reducedMotion={prefs.motion === 'reduced' ? 'always' : prefs.motion === 'full' ? 'never' : 'user'}>
+    <MotionConfig reducedMotion={motionPref}>
       <a href="#main" className="sr-only-focusable btn btn-primary fixed top-2 left-2 z-[70]">{t('common.skipToContent')}</a>
       <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-5 pb-28 md:px-8 md:pb-12">
         <header className="flex items-center justify-between gap-4 pt-5 pb-2 md:pt-7">
@@ -88,7 +116,10 @@ function AuthArrival() {
   const { t } = useI18n()
   useEffect(() => {
     if (!arrival) return
-    toast(arrival === 'signed-in' ? t('auth.welcome') : t(`auth.err.${arrival}` as Key), arrival === 'signed-in' ? 'love' : 'error')
+    toast(
+      arrival === 'signed-in' ? t('auth.welcome') : arrival === 'session-ended' ? t('auth.sessionEnded') : t(`auth.err.${arrival}` as Key),
+      arrival === 'signed-in' ? 'love' : arrival === 'session-ended' ? 'info' : 'error',
+    )
     clearArrival()
   }, [arrival, clearArrival, toast, t])
   return null

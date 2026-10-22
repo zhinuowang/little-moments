@@ -1,0 +1,17 @@
+<!-- Little Moments — sign-in link email. Paste into Supabase → Authentication → Emails, for BOTH
+     "Confirm signup" and "Magic Link". Subject: Little Moments 登录链接 · Your sign-in link
+     The link goes back to the app (RedirectTo = the app's own address) with a one-time token_hash;
+     the app calls verifyOtp itself, so mail scanners that pre-open links can't use it up and no
+     session tokens appear in the address bar. -->
+<div style="margin:0;padding:32px 20px;background:#FAFAF7;font-family:'Comic Sans MS','PingFang SC','Microsoft YaHei',sans-serif;color:#1F1F1F;">
+  <div style="max-width:420px;margin:0 auto;background:#FFFFFF;border:2px solid #1F1F1F;border-radius:18px;padding:28px 24px;">
+    <p style="margin:0 0 4px;font-size:15px;color:#8A8A86;">Little Moments ♡</p>
+    <p style="margin:0 0 20px;font-size:18px;">登录 Little Moments · Sign in to Little Moments</p>
+    <p style="margin:0 0 22px;">
+      <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;background:#1F1F1F;color:#FFFFFF;text-decoration:none;padding:12px 24px;border-radius:999px;font-size:16px;">进入 Little Moments · Come in</a>
+    </p>
+    <p style="margin:0 0 6px;font-size:14px;line-height:1.6;">点击按钮即可登录。链接只能使用一次，过一会儿会失效。</p>
+    <p style="margin:0 0 18px;font-size:14px;line-height:1.6;">Tap the button to sign in. The link works once and expires after a little while.</p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:#8A8A86;">如果不是你本人操作，忽略这封邮件就好，你的账户不会有任何变化。<br>If you didn't ask for this, just ignore this email — nothing will change.</p>
+  </div>
+</div>

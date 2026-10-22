@@ -30,16 +30,14 @@ export function getClient(): Promise<SupabaseClient> {
 }
 
 /**
- * Email links are sent with the implicit flow, so a link opened in a different browser or in a
- * mail app's built-in browser still signs in (PKCE would need the original browser). The tokens
- * come back in the URL fragment and are handed to the main client.
+ * Sends the sign-in email. The email templates turn it into a link back to `redirectTo` with a
+ * one-time `token_hash`; the app then calls verifyOtp itself (see authReturn.ts / AuthContext).
+ * That works when the link is opened in another browser or a mail app, keeps session tokens out
+ * of the address bar, and isn't used up by mail scanners that pre-open links.
  */
 export async function sendEmailSignIn(email: string, redirectTo: string) {
-  const { createClient } = await import('@supabase/supabase-js')
-  const mailer = createClient(cloudConfig.url, cloudConfig.key, {
-    auth: { flowType: 'implicit', persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  })
-  return mailer.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } })
+  const sb = await getClient()
+  return sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } })
 }
 
 /** True if this browser already holds a session, without loading the library. */

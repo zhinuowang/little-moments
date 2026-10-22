@@ -5,6 +5,16 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Welcome screen and email-link sign-in
+- First-time visitors see a welcome screen with Momo — *Continue with Email* or *Continue as Guest*
+  — remembered on the device, so returning guests, signed-in people and existing users go straight
+  in. Settings → Account can show it again. Builds without Supabase settings never show it.
+- Email sign-in is now a **link** (no six-digit code): "Check your inbox ✉", then the link returns
+  to the home page. The link carries a one-time token hash that the app verifies with `verifyOtp`,
+  which survives mail-scanner pre-opening and works with the GitHub Pages `/little-moments/` path.
+- A session that ends on its own is handled as a gentle note; nothing local is touched.
+- `supabase/templates/email-link.html` replaces the code template.
+
 ### Sign-in — clearer email-sending errors
 - When the email service refuses or fails to send a code (Supabase HTTP 5xx), the sheet now says so
   in EN / 中文 instead of a generic error, with a small "details for support" line (status and error

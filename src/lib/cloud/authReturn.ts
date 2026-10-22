@@ -1,5 +1,6 @@
 /**
  * Coming back from a sign-in link or Google, the URL carries credentials or an error:
+ *   ?token_hash=…&type=email             (email sign-in link — verified by the app itself)
  *   ?code=…                              (Google, PKCE)
  *   #access_token=…&refresh_token=…      (email link, implicit)
  *   #error=…&error_description=…  or  ?error=…
@@ -8,6 +9,7 @@
  */
 
 export type AuthReturn =
+  | { kind: 'hash'; tokenHash: string; type: 'email' | 'signup' | 'magiclink' }
   | { kind: 'code'; code: string }
   | { kind: 'tokens'; accessToken: string; refreshToken: string }
   | { kind: 'error'; code: string; description: string }
@@ -21,7 +23,10 @@ export function captureAuthReturn() {
   const q = url.searchParams
   const frag = new URLSearchParams(url.hash.startsWith('#/') ? '' : url.hash.slice(1))
 
-  if (q.get('code')) pending = { kind: 'code', code: q.get('code')! }
+  const type = q.get('type')
+  if (q.get('token_hash')) {
+    pending = { kind: 'hash', tokenHash: q.get('token_hash')!, type: type === 'signup' || type === 'magiclink' ? type : 'email' }
+  } else if (q.get('code')) pending = { kind: 'code', code: q.get('code')! }
   else if (frag.get('access_token') && frag.get('refresh_token')) {
     pending = { kind: 'tokens', accessToken: frag.get('access_token')!, refreshToken: frag.get('refresh_token')! }
   } else if (q.get('error') || frag.get('error')) {
@@ -30,7 +35,7 @@ export function captureAuthReturn() {
   }
   if (!pending) return
 
-  let route = '#/settings'
+  let route = '#/'
   try { route = localStorage.getItem(RETURN_ROUTE_KEY) || route; localStorage.removeItem(RETURN_ROUTE_KEY) } catch { /* fine */ }
   window.history.replaceState(null, '', url.pathname + route)
 }
@@ -44,5 +49,5 @@ export function takeAuthReturn() {
 
 /** Where to land after the round trip — the page the person started signing in from. */
 export function rememberReturnRoute() {
-  try { localStorage.setItem(RETURN_ROUTE_KEY, window.location.hash.startsWith('#/') ? window.location.hash : '#/settings') } catch { /* fine */ }
+  try { localStorage.setItem(RETURN_ROUTE_KEY, window.location.hash.startsWith('#/') ? window.location.hash : '#/') } catch { /* fine */ }
 }
