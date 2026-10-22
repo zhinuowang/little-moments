@@ -5,6 +5,15 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Cloud sync — Phase 1 (schema and security; no app behaviour change yet)
+- `supabase/migrations/…_cloud_sync_schema.sql`: owner-only tables for diary pages, photo records,
+  plans and settings, with Row Level Security, server-kept `updated_at` / `rev`, soft deletes for
+  sync, and a private `journal-photos` storage bucket limited to each user's own folder.
+- `npm run test:db`: 37 offline checks (PGlite) that one user can never read or change another's
+  data and signed-out visitors get nothing; runs in CI.
+- Build-time Supabase settings (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`); sync stays off
+  without them, and secret / service-role keys are refused.
+
 ### Documentation
 - CLAUDE.md: the step-by-step develop workflow for every change (check, pull safely, build,
   commit, push to `develop`, confirm the hash) and the "Publish this version" release rule.
