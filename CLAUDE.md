@@ -3,8 +3,11 @@
 These apply to every session working on this project. Details are in DEVELOPMENT.md.
 
 Repository: https://github.com/zhinuowang/little-moments.git (remote `origin`, SSH:
-`git@github.com:zhinuowang/little-moments.git`). Live site: https://zhinuowang.github.io/little-moments/
-— deployed only from `main`. `v1.0.0` is the owner's original approved baseline.
+`git@github.com:zhinuowang/little-moments.git`). GitHub Pages site: https://zhinuowang.github.io/little-moments/
+— deployed only from `main` (`v1.0.0` is the owner's original approved baseline).
+Vercel (cloud-sync version, docs/DEPLOY-VERCEL.md): `develop` → private previews only; the public
+Vercel site deploys only from the `release` branch. Never create or push `release` without the
+owner's explicit approval of that specific commit; push it fast-forward only, never force.
 
 ## Every requested change — follow these steps automatically
 1. **Work on `develop`**, never `main`. (A short-lived `feature/*` branch made from `develop` is fine

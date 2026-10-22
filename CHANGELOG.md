@@ -5,6 +5,14 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Vercel deployment preparation
+- `vercel.json`: Vite build into `dist`, `npm ci`, `main` excluded from Vercel, cache rules (no-cache
+  for `sw.js`/`index.html`/manifest, immutable hashed assets), security headers and a report-only
+  Content-Security-Policy (tested enforced locally: no violations). The app already builds for `/`
+  when `BASE_PATH` is unset and returns from Google to its own origin, so no code change was needed.
+- `docs/DEPLOY-VERCEL.md`: dashboard settings, environment variables, Supabase redirect URLs, Google
+  client changes, and the release-branch rule (develop = private previews; public only from `release`).
+
 ### Phase 3C — cloud saving for Diary pages and photos (signed-in accounts)
 - Pages (dates, moods, stickers, layouts, frames, place, seal, photo ids) sync to
   `journal_entries`; photos upload to the private `journal-photos/<user id>/` folder before the page

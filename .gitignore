@@ -19,3 +19,6 @@ little-moments-backup-*.json
 .DS_Store
 *.log
 npm-debug.log*
+
+# Vercel CLI link folder
+.vercel/
