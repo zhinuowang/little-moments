@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Confirm, PageTitle } from '../components/ui/Bits'
 import { clearEverything, storageAvailable } from '../db/db'
-import { useI18n, type Lang } from '../i18n'
+import { useI18n, type Key, type Lang } from '../i18n'
 import { BackupError, exportBackup, importBackup } from '../lib/backup'
 import { play } from '../lib/sound'
 import { useApp } from '../store/AppContext'
 import { useAuth } from '../store/AuthContext'
-import { SignInSheet } from '../components/account/SignInSheet'
+import { GoogleMark } from '../components/account/GoogleMark'
 import type { MotionPref } from '../types'
 
 function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -169,29 +169,43 @@ export function Settings() {
 /** Optional account. Shown only in builds with cloud sign-in configured; guest is the default. */
 function AccountSection() {
   const { t } = useI18n()
-  const { toast } = useApp()
+  const { toast, profile } = useApp()
   const auth = useAuth()
-  const [open, setOpen] = useState(false)
+  const [google, setGoogle] = useState<'checking' | 'yes' | 'off' | 'unreachable'>('checking')
+  const [busy, setBusy] = useState(false)
   const [confirmOut, setConfirmOut] = useState(false)
+  useEffect(() => {
+    if (!auth.enabled || auth.status === 'signed-in') return
+    let alive = true
+    auth.googleAvailable().then((g) => { if (alive) setGoogle(g) })
+    return () => { alive = false }
+  }, [auth])
   if (!auth.enabled) return null
   return (
     <Section title={t('settings.account')}>
       {auth.status === 'signed-in' ? (
         <>
           <p className="text-[15px] text-ink">{t('settings.signedInAs', { email: auth.email ?? '…' })}</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted">{t('settings.syncNotYet')}</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">{t('settings.accountData')}</p>
           <button className="btn btn-quiet btn-sm mt-4 -ml-2" onClick={() => setConfirmOut(true)}>{t('settings.signOut')}</button>
         </>
       ) : (
         <>
           <p className="text-[14px] leading-relaxed text-ink-2">{auth.status === 'checking' ? t('settings.accountChecking') : t('settings.guestBody')}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className="btn" onClick={() => { play('tap'); setOpen(true) }} disabled={auth.status === 'checking'}>{t('settings.signIn')}</button>
+            <button
+              className="btn" disabled={auth.status === 'checking' || google !== 'yes' || busy}
+              onClick={async () => { play('tap'); setBusy(true); const err = await auth.signInWithGoogle(); if (err) { setBusy(false); toast(t(`auth.err.${err}` as Key), 'error') } }}
+            >
+              <GoogleMark className="mr-2 h-4 w-4" />{t('auth.google')}
+            </button>
             <button className="btn btn-quiet" onClick={() => { play('tap'); window.dispatchEvent(new Event('lm-show-welcome')) }} disabled={auth.status === 'checking'}>{t('settings.showWelcome')}</button>
           </div>
+          {google === 'unreachable' && <p className="mt-2 text-[12px] text-muted">{t('auth.googleUnreachable')}</p>}
+          {google === 'off' && <p className="mt-2 text-[12px] text-muted">{t('auth.googleOff')}</p>}
+          {profile === 'guest' && <p className="mt-3 text-[12px] leading-relaxed text-faint">{t('settings.guestSeparate')}</p>}
         </>
       )}
-      <SignInSheet open={open} onClose={() => setOpen(false)} />
       <Confirm
         open={confirmOut}
         title={t('settings.signOutTitle')}

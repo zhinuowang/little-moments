@@ -17,11 +17,11 @@ if (cloudEnabled) captureAuthReturn()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <I18nProvider>
-      <AppProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <AppProvider>
           <App />
-        </AuthProvider>
-      </AppProvider>
+        </AppProvider>
+      </AuthProvider>
     </I18nProvider>
   </StrictMode>,
 )

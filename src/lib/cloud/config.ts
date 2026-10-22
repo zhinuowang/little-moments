@@ -31,9 +31,3 @@ if (unsafe) console.error('Little Moments: a Supabase secret/service-role key wa
 export const cloudConfig = { url, key }
 export const cloudEnabled = !!url && !!key && !unsafe && /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/.test(url)
 
-/**
- * Whether email sign-in can reach everyone yet. Until a sending domain is verified (Resend's test
- * sender only reaches its own account), keep this 'limited' so the app says so honestly.
- * Set VITE_EMAIL_SIGNIN=open once real inboxes (Gmail, QQ, 163, Outlook) have been tested.
- */
-export const emailSigninOpen = import.meta.env.VITE_EMAIL_SIGNIN?.trim() === 'open'

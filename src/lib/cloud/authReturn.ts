@@ -1,17 +1,13 @@
 /**
  * Coming back from a sign-in link or Google, the URL carries credentials or an error:
- *   ?token_hash=…&type=email             (email sign-in link — verified by the app itself)
- *   ?code=…                              (Google, PKCE)
- *   #access_token=…&refresh_token=…      (email link, implicit)
- *   #error=…&error_description=…  or  ?error=…
+ *   ?code=…                              (Google, PKCE — exchanged by the app)
+ *   ?error=…&error_description=…  or  #error=…
  * This runs before the app renders: it takes them out of the address bar (so they never stay
  * in history or reach the #/ router) and keeps them in memory for the auth provider.
  */
 
 export type AuthReturn =
-  | { kind: 'hash'; tokenHash: string; type: 'email' | 'signup' | 'magiclink' }
   | { kind: 'code'; code: string }
-  | { kind: 'tokens'; accessToken: string; refreshToken: string }
   | { kind: 'error'; code: string; description: string }
 
 const RETURN_ROUTE_KEY = 'lm-auth-return'
@@ -23,13 +19,8 @@ export function captureAuthReturn() {
   const q = url.searchParams
   const frag = new URLSearchParams(url.hash.startsWith('#/') ? '' : url.hash.slice(1))
 
-  const type = q.get('type')
-  if (q.get('token_hash')) {
-    pending = { kind: 'hash', tokenHash: q.get('token_hash')!, type: type === 'signup' || type === 'magiclink' ? type : 'email' }
-  } else if (q.get('code')) pending = { kind: 'code', code: q.get('code')! }
-  else if (frag.get('access_token') && frag.get('refresh_token')) {
-    pending = { kind: 'tokens', accessToken: frag.get('access_token')!, refreshToken: frag.get('refresh_token')! }
-  } else if (q.get('error') || frag.get('error')) {
+  if (q.get('code')) pending = { kind: 'code', code: q.get('code')! }
+  else if (q.get('error') || frag.get('error')) {
     const src = q.get('error') ? q : frag
     pending = { kind: 'error', code: src.get('error_code') ?? src.get('error') ?? 'unknown', description: src.get('error_description') ?? '' }
   }

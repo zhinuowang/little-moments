@@ -3,6 +3,12 @@ import { photosDb } from '../db/db'
 
 const cache = new Map<string, string>()
 
+/** Drops every cached preview — used when switching profile so no photo leaks across. */
+export function forgetAllPhotoURLs() {
+  for (const u of cache.values()) URL.revokeObjectURL(u)
+  cache.clear()
+}
+
 export function forgetPhotoURL(id: string) {
   const u = cache.get(id)
   if (u) URL.revokeObjectURL(u)

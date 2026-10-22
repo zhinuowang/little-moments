@@ -1,3 +1,24 @@
+# Sign-in — Google or guest
+
+**Current decision (2026-10-22, Phase 3A):** two ways in — **Continue with Google** or **Continue as
+Guest**. Email sign-in (magic link and code) has been removed from the app. Data separation and
+sync design: [SYNC.md](SYNC.md).
+
+- **Guest** (default): no account; everything stays in this browser (`little-moments` database,
+  exactly as v1.0.0). Never uploaded automatically.
+- **Google**: Supabase Auth with Google OAuth, PKCE (`?code=` returns to the app's own address —
+  `http://localhost:5173/` in development, `https://zhinuowang.github.io/little-moments/` live — and
+  the app exchanges it). The button only works when Google is enabled in Supabase *and* reachable
+  on the current network; otherwise it explains and guest mode remains.
+- Returning Google users are restored from the saved session (also offline) and skip the welcome
+  screen. If a session ends, the app shows the guest diary with a note; the account's local data
+  stays on the device and comes back on the next sign-in.
+- Mainland China: Google is unreachable there (measured below), so guest mode is the option.
+
+The sections below are the history of the earlier email work, kept for reference.
+
+---
+
 # Sign-in design — North America and mainland China
 
 Status: design approved for Phase 2 on `develop`. Nothing here is live on the public site.

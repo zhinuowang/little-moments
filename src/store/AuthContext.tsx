@@ -1,57 +1,50 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { takeAuthReturn, rememberReturnRoute } from '../lib/cloud/authReturn'
-import { getClient, hasStoredSession, sendEmailSignIn, withTimeout } from '../lib/cloud/client'
+import { AUTH_STORAGE_KEY, getClient, storedUserId, withTimeout } from '../lib/cloud/client'
 import { cloudConfig, cloudEnabled } from '../lib/cloud/config'
 import { setEntry } from '../lib/entry'
 
 /**
- * Who is using the app. Guest is the default and needs nothing from the network.
- * Signing in, signing out or a session expiring never touches the diary, plans or photos
- * stored on this device — cloud sync is a later phase.
+ * Who is using the app: a guest (the default, nothing from the network) or a Google account.
+ * Signing in, signing out or a session ending never deletes anything on this device; the app
+ * just switches which profile's data it shows (see AppContext / db.ts).
  */
 
 export type AuthStatus = 'off' | 'guest' | 'checking' | 'signed-in'
-export type AuthError = 'offline' | 'rate-limit' | 'expired' | 'bad-link' | 'bad-email' | 'send-failed' | 'unknown'
+export type AuthError = 'offline' | 'cancelled' | 'unknown'
 
 interface Ctx {
   status: AuthStatus
+  /** the signed-in account's id — known from the saved session even when offline */
+  userId: string | null
   email: string | null
-  /** present only when cloud sign-in is configured for this build */
+  /** cloud sign-in is configured for this build */
   enabled: boolean
-  /** emails a sign-in link; resolves to an error or null when sent */
-  sendLink: (email: string) => Promise<AuthError | null>
   googleAvailable: () => Promise<'yes' | 'off' | 'unreachable'>
   signInWithGoogle: () => Promise<AuthError | null>
   signOut: () => Promise<void>
-  /** status and Supabase error code of the last failure, e.g. "500 · unexpected_failure" — no personal data */
-  lastErrorDetail: string | null
-  /** set once after returning from a sign-in link, or when a session ran out */
+  /** set once after returning from Google, or when a session ran out */
   arrival: 'signed-in' | 'session-ended' | AuthError | null
   clearArrival: () => void
 }
 
 const AuthCtx = createContext<Ctx | null>(null)
 
-let lastDetail: string | null = null
-
-function classify(err: unknown, sending = false): AuthError {
+function classify(err: unknown): AuthError {
   const e = err as { status?: number; code?: string; message?: string } | null
   const msg = `${e?.code ?? ''} ${e?.message ?? ''}`.toLowerCase()
-  lastDetail = [e?.status, e?.code].filter(Boolean).join(' · ') || null
-  if (lastDetail) console.warn('Little Moments sign-in:', lastDetail) // status + code only, never the address or token
-  // the email service refused or failed to send (e.g. Resend's test sender only reaches its own account)
-  if (sending && ((e?.status ?? 0) >= 500 || msg.includes('unexpected_failure') || msg.includes('sending') || msg.includes('smtp'))) return 'send-failed'
+  const detail = [e?.status, e?.code].filter(Boolean).join(' · ')
+  if (detail) console.warn('Little Moments sign-in:', detail) // status + code only, never tokens
   if (!navigator.onLine || msg.includes('timeout') || msg.includes('fetch') || msg.includes('network')) return 'offline'
-  if (e?.status === 429 || msg.includes('rate') || msg.includes('too many')) return 'rate-limit'
-  if (msg.includes('expired')) return 'expired'
-  if (msg.includes('invalid') && msg.includes('email')) return 'bad-email'
-  if (msg.includes('otp') || msg.includes('token') || msg.includes('invalid')) return 'bad-link'
+  if (msg.includes('access_denied') || msg.includes('cancel')) return 'cancelled'
   return 'unknown'
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>(cloudEnabled ? 'guest' : 'off')
+  const initialUser = cloudEnabled ? storedUserId() : null
+  const [status, setStatus] = useState<AuthStatus>(!cloudEnabled ? 'off' : initialUser ? 'checking' : 'guest')
+  const [userId, setUserId] = useState<string | null>(initialUser)
   const [email, setEmail] = useState<string | null>(null)
   const [arrival, setArrival] = useState<Ctx['arrival']>(null)
   const watching = useRef(false)
@@ -66,20 +59,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         wasSignedIn.current = true
         setEntry('account')
       } else if (event === 'SIGNED_OUT' && wasSignedIn.current && !leaving.current) {
-        // the session ran out or was revoked elsewhere: carry on as a guest, nothing local is touched
+        // the session ran out or was revoked elsewhere: show the guest view, keep everything
         setArrival('session-ended')
       }
       if (!session) wasSignedIn.current = false
+      setUserId(session?.user.id ?? null)
       setEmail(session?.user.email ?? null)
       setStatus(session ? 'signed-in' : 'guest')
     })
   }, [])
 
-  // On start: finish a sign-in that came back through the URL, or restore a saved session.
+  // On start: finish a Google sign-in that came back through the URL, or restore a saved session.
   useEffect(() => {
     if (!cloudEnabled) return
     const ret = takeAuthReturn()
-    if (!ret && !hasStoredSession()) return // a guest — don't load anything
+    if (!ret && !storedUserId()) return // a guest — don't load anything
     let alive = true
     setStatus('checking')
     ;(async () => {
@@ -87,14 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sb = await withTimeout(getClient())
         watch(sb)
         if (ret?.kind === 'error') {
-          setArrival(ret.code.includes('expired') ? 'expired' : 'bad-link')
-        } else if (ret?.kind === 'hash') {
-          // the only step that signs anyone in: Supabase checks the one-time hash from the email
-          const { error } = await withTimeout(sb.auth.verifyOtp({ token_hash: ret.tokenHash, type: ret.type }))
-          setArrival(error ? classify(error) : 'signed-in')
-        } else if (ret?.kind === 'tokens') {
-          const { error } = await withTimeout(sb.auth.setSession({ access_token: ret.accessToken, refresh_token: ret.refreshToken }))
-          setArrival(error ? classify(error) : 'signed-in')
+          setArrival(ret.code.includes('access_denied') ? 'cancelled' : 'unknown')
         } else if (ret?.kind === 'code') {
           const { error } = await withTimeout(sb.auth.exchangeCodeForSession(ret.code))
           setArrival(error ? classify(error) : 'signed-in')
@@ -102,29 +89,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data } = await withTimeout(sb.auth.getSession())
         if (!alive) return
         if (data.session) { wasSignedIn.current = true; setEntry('account') }
+        setUserId(data.session?.user.id ?? null)
         setEmail(data.session?.user.email ?? null)
         setStatus(data.session ? 'signed-in' : 'guest')
       } catch (err) {
-        // can't reach the cloud: keep a saved session as-is and stay usable on this device
+        // offline: keep the saved session's account (its data is on this device) and carry on
         if (!alive) return
         if (ret && ret.kind !== 'error') setArrival(classify(err))
-        setStatus(hasStoredSession() ? 'signed-in' : 'guest')
+        const id = storedUserId()
+        setUserId(id)
+        setStatus(id ? 'signed-in' : 'guest')
       }
     })()
     return () => { alive = false }
   }, [watch])
-
-  // the link must come back to this app — locally or under /little-moments/ on GitHub Pages
-  const redirectTo = () => `${window.location.origin}${import.meta.env.BASE_URL}`
-
-  const sendLink = useCallback(async (address: string) => {
-    try {
-      lastDetail = null
-      rememberReturnRoute()
-      const { error } = await withTimeout(sendEmailSignIn(address.trim(), redirectTo()))
-      return error ? classify(error, true) : null
-    } catch (err) { return classify(err, true) }
-  }, [])
 
   const googleAvailable = useCallback(async (): Promise<'yes' | 'off' | 'unreachable'> => {
     try {
@@ -139,11 +117,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { return 'unreachable' }
   }, [])
 
+  // Google comes back here — locally or under /little-moments/ on GitHub Pages
   const signInWithGoogle = useCallback(async () => {
     try {
       const sb = await withTimeout(getClient())
       rememberReturnRoute()
-      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectTo() } })
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`, queryParams: { prompt: 'select_account' } },
+      })
       return error ? classify(error) : null
     } catch (err) { return classify(err) }
   }, [])
@@ -154,19 +136,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sb = await withTimeout(getClient())
       await withTimeout(sb.auth.signOut({ scope: 'local' }))
     } catch {
-      try { localStorage.removeItem('lm-auth') } catch { /* fine */ }
+      try { localStorage.removeItem(AUTH_STORAGE_KEY) } catch { /* fine */ }
     }
     leaving.current = false
     wasSignedIn.current = false
+    setUserId(null)
     setEmail(null)
     setStatus('guest')
   }, [])
 
   const value = useMemo<Ctx>(() => ({
-    status, email, enabled: cloudEnabled, sendLink, googleAvailable, signInWithGoogle, signOut,
-    get lastErrorDetail() { return lastDetail },
+    status, userId, email, enabled: cloudEnabled, googleAvailable, signInWithGoogle, signOut,
     arrival, clearArrival: () => setArrival(null),
-  }), [status, email, sendLink, googleAvailable, signInWithGoogle, signOut, arrival])
+  }), [status, userId, email, googleAvailable, signInWithGoogle, signOut, arrival])
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>
 }

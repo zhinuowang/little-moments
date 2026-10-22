@@ -29,20 +29,18 @@ export function getClient(): Promise<SupabaseClient> {
   return main
 }
 
-/**
- * Sends the sign-in email. The email templates turn it into a link back to `redirectTo` with a
- * one-time `token_hash`; the app then calls verifyOtp itself (see authReturn.ts / AuthContext).
- * That works when the link is opened in another browser or a mail app, keeps session tokens out
- * of the address bar, and isn't used up by mail scanners that pre-open links.
- */
-export async function sendEmailSignIn(email: string, redirectTo: string) {
-  const sb = await getClient()
-  return sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } })
-}
-
 /** True if this browser already holds a session, without loading the library. */
 export function hasStoredSession() {
-  try { return !!localStorage.getItem(AUTH_STORAGE_KEY) } catch { return false }
+  return storedUserId() !== null
+}
+
+/** The signed-in user's id from the saved session — read locally, so it works offline. */
+export function storedUserId(): string | null {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    const id = raw ? (JSON.parse(raw) as { user?: { id?: unknown } })?.user?.id : null
+    return typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id) ? id : null
+  } catch { return null }
 }
 
 /** Rejects if `p` takes longer than `ms`, so a slow network never leaves the UI hanging. */

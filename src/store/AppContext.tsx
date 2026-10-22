@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../i18n'
-import { entriesDb, initStorage, kvDb, photosDb, plansDb } from '../db/db'
+import { GUEST_DB, accountDbName, entriesDb, initStorage, kvDb, photosDb, plansDb, switchDatabase } from '../db/db'
+import { forgetAllPhotoURLs } from '../lib/usePhoto'
+import { useAuth } from './AuthContext'
 import { setSoundEnabled } from '../lib/sound'
 import { defaultPrefs, type JournalEntry, type Plan, type Prefs } from '../types'
 
@@ -8,6 +10,8 @@ export interface Toast { id: number; text: string; kind: 'info' | 'error' | 'lov
 
 interface Ctx {
   loaded: boolean
+  /** whose data is on screen: the guest diary on this device, or the signed-in account's */
+  profile: 'guest' | 'account'
   /** nothing has ever been saved on this device (no settings, pages or plans) — a first visit */
   fresh: boolean
   storageOk: boolean
@@ -41,6 +45,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastId = useRef(0)
   const { t } = useI18n()
+  const auth = useAuth()
+  // which device database to use; null while a saved session is still being checked
+  const dbName = auth.status === 'checking' ? null
+    : auth.status === 'signed-in' && auth.userId ? accountDbName(auth.userId) : GUEST_DB
 
   const toast = useCallback((text: string, kind: Toast['kind'] = 'info') => {
     const id = ++toastId.current
@@ -60,7 +68,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLoaded(true)
   }, [])
 
-  useEffect(() => { void reload() }, [reload])
+  // load (or switch to) the right profile; switching never deletes anything
+  useEffect(() => {
+    if (!dbName) { setLoaded(false); return }
+    let alive = true
+    setLoaded(false)
+    ;(async () => {
+      await switchDatabase(dbName)
+      forgetAllPhotoURLs()
+      if (alive) await reload()
+    })()
+    return () => { alive = false }
+  }, [dbName, reload])
 
   // apply motion + sound preferences globally
   useEffect(() => {
@@ -120,9 +139,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isSaved = useCallback((activityId: string) => plans.some((p) => p.activityId === activityId), [plans])
 
   const value = useMemo<Ctx>(() => ({
-    loaded, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
+    loaded, profile: dbName && dbName !== GUEST_DB ? 'account' : 'guest', fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
     isSaved, toasts, toast, dismissToast, reload,
-  }), [loaded, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
+  }), [loaded, dbName, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

@@ -5,6 +5,15 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Phase 3A — Google or guest, with separate data per account
+- The welcome screen and Settings offer only **Continue with Google** and **Continue as Guest**;
+  email sign-in (link and code), its email template and the `VITE_EMAIL_SIGNIN` setting are removed.
+- Each Google account now has its **own** database on the device (`little-moments-acct-<id>`); the
+  guest diary stays in `little-moments`, untouched. Signing in, out, switching accounts or a session
+  ending only changes which one is shown — nothing is deleted — and cached photo previews are cleared.
+- A saved session is restored from the device, even offline. `docs/SYNC.md` maps every Diary, photo,
+  Plan and settings field to Supabase and lists the risks handled in the sync phases.
+
 ### Simpler welcome screen
 - Momo, "little moments ♡", a short tagline, then **Continue with Google** (shown only when Google
   is enabled in Supabase *and* reachable), **Continue with Email**, and a quiet **Continue as guest**
