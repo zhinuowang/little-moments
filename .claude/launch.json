@@ -2,21 +2,49 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "little-moments-dev",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd \"$HOME/Downloads/little-moments\" && exec npm run dev -- --port 5173 --strictPort"
+      ],
+      "port": 5173
+    },
+    {
       "name": "little-moments",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
     },
     {
       "name": "little-moments-prod",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview", "--", "--port", "4173", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
       "port": 4173
     },
     {
       "name": "little-moments-pages",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview:pages", "--", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "preview:pages",
+        "--",
+        "--strictPort"
+      ],
       "port": 4174
     }
   ]

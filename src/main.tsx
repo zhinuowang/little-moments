@@ -7,12 +7,20 @@ import './styles/index.css'
 import App from './App'
 import { I18nProvider } from './i18n'
 import { AppProvider } from './store/AppContext'
+import { AuthProvider } from './store/AuthContext'
+import { captureAuthReturn } from './lib/cloud/authReturn'
+import { cloudEnabled } from './lib/cloud/config'
+
+// a sign-in link or Google brings credentials back in the URL; take them out before routing
+if (cloudEnabled) captureAuthReturn()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <I18nProvider>
       <AppProvider>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </AppProvider>
     </I18nProvider>
   </StrictMode>,

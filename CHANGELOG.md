@@ -5,6 +5,19 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Sign-in — Phase 2 (optional; guest stays the default)
+- Settings → **Account** (only in builds with Supabase settings): sign in with an email, or stay a
+  guest. Signing in or out never changes the diary, photos or plans on the device; cloud sync is
+  not on yet.
+- Sign-in sheet in EN / 中文: email → 6-digit code box, which also explains the emailed link
+  (Supabase's default email sends a link until custom SMTP enables the code template).
+  Email links use the implicit flow so they work in another browser or a mail app; Google uses PKCE
+  and appears only when it is enabled in Supabase *and* reachable on the current network.
+- Credentials returning in the URL are removed before routing; expired or failed links show a
+  gentle message and return to the starting page. Network failures time out with a calm message.
+- The Supabase library loads only when someone opens sign-in or already has a session; builds
+  without settings contain no project address or key.
+
 ### Cloud sync — Phase 1 (schema and security; no app behaviour change yet)
 - `supabase/migrations/…_cloud_sync_schema.sql`: owner-only tables for diary pages, photo records,
   plans and settings, with Row Level Security, server-kept `updated_at` / `rev`, soft deletes for

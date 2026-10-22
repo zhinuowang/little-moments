@@ -5,8 +5,9 @@ import { Momo } from './components/momo/Momo'
 import { Toasts } from './components/ui/Bits'
 import { BottomNav, LangSwitch, TopNav } from './components/ui/Nav'
 import { YarnDot } from './components/ui/Yarn'
-import { useI18n } from './i18n'
+import { useI18n, type Key } from './i18n'
 import { useApp } from './store/AppContext'
+import { useAuth } from './store/AuthContext'
 import { navigate, useRoute } from './store/router'
 import { Discover } from './views/Discover'
 import { Home } from './views/Home'
@@ -65,6 +66,7 @@ export default function App() {
       </div>
       <div className="md:hidden"><BottomNav active={active} /></div>
       <Toasts />
+      <AuthArrival />
     </MotionConfig>
   )
 }
@@ -77,6 +79,19 @@ function Loading({ waking }: { waking?: boolean }) {
       <p className="mt-4 text-sm text-muted">{t(waking ? 'common.waking' : 'common.loading')}</p>
     </div>
   )
+}
+
+/** One toast after returning from a sign-in link: welcome, or what went wrong. */
+function AuthArrival() {
+  const { arrival, clearArrival } = useAuth()
+  const { toast } = useApp()
+  const { t } = useI18n()
+  useEffect(() => {
+    if (!arrival) return
+    toast(arrival === 'signed-in' ? t('auth.welcome') : t(`auth.err.${arrival}` as Key), arrival === 'signed-in' ? 'love' : 'error')
+    clearArrival()
+  }, [arrival, clearArrival, toast, t])
+  return null
 }
 
 function NotFound() {

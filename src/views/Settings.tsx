@@ -5,6 +5,8 @@ import { useI18n, type Lang } from '../i18n'
 import { BackupError, exportBackup, importBackup } from '../lib/backup'
 import { play } from '../lib/sound'
 import { useApp } from '../store/AppContext'
+import { useAuth } from '../store/AuthContext'
+import { SignInSheet } from '../components/account/SignInSheet'
 import type { MotionPref } from '../types'
 
 function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -91,6 +93,8 @@ export function Settings() {
         <p className="mt-3 text-[13px] text-muted">{t('settings.languageHint')}</p>
       </Section>
 
+      <AccountSection />
+
       <Section title={t('settings.you')}>
         <label className="block">
           <span className="label">{t('settings.nameLabel')}</span>
@@ -159,5 +163,40 @@ export function Settings() {
         }}
       />
     </div>
+  )
+}
+
+/** Optional account. Shown only in builds with cloud sign-in configured; guest is the default. */
+function AccountSection() {
+  const { t } = useI18n()
+  const { toast } = useApp()
+  const auth = useAuth()
+  const [open, setOpen] = useState(false)
+  const [confirmOut, setConfirmOut] = useState(false)
+  if (!auth.enabled) return null
+  return (
+    <Section title={t('settings.account')}>
+      {auth.status === 'signed-in' ? (
+        <>
+          <p className="text-[15px] text-ink">{t('settings.signedInAs', { email: auth.email ?? '…' })}</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">{t('settings.syncNotYet')}</p>
+          <button className="btn btn-quiet btn-sm mt-4 -ml-2" onClick={() => setConfirmOut(true)}>{t('settings.signOut')}</button>
+        </>
+      ) : (
+        <>
+          <p className="text-[14px] leading-relaxed text-ink-2">{auth.status === 'checking' ? t('settings.accountChecking') : t('settings.guestBody')}</p>
+          <button className="btn mt-4" onClick={() => { play('tap'); setOpen(true) }} disabled={auth.status === 'checking'}>{t('settings.signIn')}</button>
+        </>
+      )}
+      <SignInSheet open={open} onClose={() => setOpen(false)} />
+      <Confirm
+        open={confirmOut}
+        title={t('settings.signOutTitle')}
+        body={t('settings.signOutBody')}
+        confirmLabel={t('settings.signOut')}
+        onCancel={() => setConfirmOut(false)}
+        onConfirm={async () => { setConfirmOut(false); await auth.signOut(); toast(t('settings.signedOut')) }}
+      />
+    </Section>
   )
 }
