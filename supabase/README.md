@@ -42,3 +42,10 @@ on every pull request and push to `develop`.
 Every row has `user_id` (defaults to the signed-in user; can never change), `updated_at` and `rev`
 (set by the server), and `deleted_at` (soft delete, so other devices learn about deletions).
 Deleting a user in **Authentication → Users** removes all of their rows.
+
+## Live project checks (2026-10-22, read-only)
+
+Project `jcvtizdyqwjiqpvjepna` (US West): all four tables have RLS enabled with the four owner-only
+policies and no `anon` privileges; `journal-photos` is private (5 MB, JPEG/PNG/WebP) with only the
+four owner-folder policies; Supabase's security advisor reports no issues; signed-out requests to
+every table return `permission denied`, and public photo URLs don't work.

@@ -22,10 +22,15 @@ mail providers that can "use up" a link before the person clicks it.
 | `supabase.co` | 8 / 8 | 0.2–0.4 s |
 | `accounts.google.com` | 0 / 8 | TCP connection timed out everywhere |
 
+| Project auth API `jcvtizdyqwjiqpvjepna.supabase.co/auth/v1/health` (US West) | 8 / 8 | 0.35–1.9 s |
+| Project data API `jcvtizdyqwjiqpvjepna.supabase.co/rest/v1/` | 8 / 8 | 0.18–1.5 s |
+
+(Project rows measured later the same day; HTTP 401 there is the expected "no key" answer, which
+proves the server responded.)
+
 Probes are mostly Tencent / Alibaba cloud and China Unicom backbone networks, not home
-broadband, so this is a strong signal rather than a guarantee. Still to measure: the project's own
-API address (`https://<ref>.supabase.co/auth/v1/health`) — `npm run check:china -- <url>` — and
-real devices on China Telecom / China Mobile home networks.
+broadband, so this is a strong signal rather than a guarantee. Still to try: real devices on
+China Telecom / China Mobile home networks. Re-run any time with `npm run check:china -- <url>`.
 
 ## Sign-in screen
 
@@ -40,6 +45,14 @@ real devices on China Telecom / China Mobile home networks.
 - Monochrome, hand-lettered, Momo beside the title, every word in EN and 中文. Google's own "G"
   mark is shown in its required colours, small; everything else stays black and white.
 - Signing out never deletes anything on the device.
+
+## Email code settings (Supabase → Authentication)
+
+- Email provider on; **Email OTP length 6**; **Email OTP expiration 600 s** (10 minutes).
+- Templates **Magic Link** and **Confirm signup** both use `supabase/templates/email-code.html`
+  (subject: `Little Moments 登录验证码 · Your sign-in code`). The app calls `signInWithOtp` then
+  `verifyOtp({ type: 'email' })`, so Supabase sends "Confirm signup" to new addresses and
+  "Magic Link" to returning ones — both must show `{{ .Token }}`.
 
 ## Email delivery (needed before the public release, not for development)
 
