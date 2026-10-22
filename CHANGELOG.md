@@ -5,6 +5,13 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Simpler welcome screen
+- Momo, "little moments ♡", a short tagline, then **Continue with Google** (shown only when Google
+  is enabled in Supabase *and* reachable), **Continue with Email**, and a quiet **Continue as guest**
+  link. Where Google is off or blocked (e.g. mainland China), email becomes the main button.
+- While email delivery is limited (Resend test sender), the email step says so plainly;
+  `VITE_EMAIL_SIGNIN=open` removes the note once real inboxes have been tested.
+
 ### Welcome screen and email-link sign-in
 - First-time visitors see a welcome screen with Momo — *Continue with Email* or *Continue as Guest*
   — remembered on the device, so returning guests, signed-in people and existing users go straight

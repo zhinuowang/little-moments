@@ -2,6 +2,7 @@ import { motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useI18n, type Key } from '../../i18n'
 import { play } from '../../lib/sound'
+import { emailSigninOpen } from '../../lib/cloud/config'
 import { useAuth, type AuthError } from '../../store/AuthContext'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -77,6 +78,7 @@ export function EmailLinkForm({ autoFocus }: { autoFocus?: boolean }) {
         {busy ? t('auth.sending') : wait > 0 ? t('auth.resendIn', { s: wait }) : t('auth.send')}
       </button>
       <p className="text-center text-[12px] leading-relaxed text-faint">{t('auth.noPassword')}</p>
+      {!emailSigninOpen && <p className="text-center text-[12px] leading-relaxed text-muted">{t('auth.emailLimited')}</p>}
     </form>
   )
 }

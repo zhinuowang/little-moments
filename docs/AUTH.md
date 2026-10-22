@@ -41,8 +41,10 @@ China Telecom / China Mobile home networks. Re-run any time with `npm run check:
 
 ## Sign-in screens
 
-- **Welcome** (first visit): Momo, "Your little space to unwind ♡", *Continue with Email* (primary)
-  and *Continue as Guest*. Monochrome, hand-lettered, gentle staggered entrance, EN / 中文 switch.
+- **Welcome** (first visit): Momo, "little moments ♡", "Your little space to unwind", then
+  *Continue with Google* (only when enabled in Supabase and reachable on this network), *Continue
+  with Email*, and a quiet *Continue as guest* link. If Google is off or blocked, email is the main
+  button. While email delivery is limited, the email step says so (`VITE_EMAIL_SIGNIN`).
 - **Email**: one field → *Email me a sign-in link* → "Check your inbox ✉" with *Send a new link*
   (60 s, or after Supabase's rate limit) and *Use another email*. Guests can still go in at any time.
 - **Settings → Account**: the same form in a sheet for guests, plus *Show the welcome screen*;
