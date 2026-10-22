@@ -5,6 +5,11 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Sign-in — clearer email-sending errors
+- When the email service refuses or fails to send a code (Supabase HTTP 5xx), the sheet now says so
+  in EN / 中文 instead of a generic error, with a small "details for support" line (status and error
+  code only — never the address or code).
+
 ### Sign-in — six-digit code first
 - The email step now says **Send verification code**; the code box accepts a pasted "123 456",
   refuses letters with a hint, signs in on the 6th digit, and explains wrong/expired codes and

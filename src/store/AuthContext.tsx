@@ -11,7 +11,7 @@ import { cloudConfig, cloudEnabled } from '../lib/cloud/config'
  */
 
 export type AuthStatus = 'off' | 'guest' | 'checking' | 'signed-in'
-export type AuthError = 'offline' | 'rate-limit' | 'bad-code' | 'expired' | 'bad-email' | 'unknown'
+export type AuthError = 'offline' | 'rate-limit' | 'bad-code' | 'expired' | 'bad-email' | 'send-failed' | 'unknown'
 
 interface Ctx {
   status: AuthStatus
@@ -23,6 +23,8 @@ interface Ctx {
   googleAvailable: () => Promise<'yes' | 'off' | 'unreachable'>
   signInWithGoogle: () => Promise<AuthError | null>
   signOut: () => Promise<void>
+  /** status and Supabase error code of the last failure, e.g. "500 · unexpected_failure" — no personal data */
+  lastErrorDetail: string | null
   /** set once after returning from a sign-in link: 'signed-in' or an error */
   arrival: 'signed-in' | AuthError | null
   clearArrival: () => void
@@ -30,9 +32,15 @@ interface Ctx {
 
 const AuthCtx = createContext<Ctx | null>(null)
 
-function classify(err: unknown): AuthError {
+let lastDetail: string | null = null
+
+function classify(err: unknown, sending = false): AuthError {
   const e = err as { status?: number; code?: string; message?: string } | null
   const msg = `${e?.code ?? ''} ${e?.message ?? ''}`.toLowerCase()
+  lastDetail = [e?.status, e?.code].filter(Boolean).join(' · ') || null
+  if (lastDetail) console.warn('Little Moments sign-in:', lastDetail) // status + code only, never the address or code
+  // the email service refused or failed to send (e.g. Resend's test sender only reaches its own account)
+  if (sending && ((e?.status ?? 0) >= 500 || msg.includes('unexpected_failure') || msg.includes('sending') || msg.includes('smtp'))) return 'send-failed'
   if (!navigator.onLine || msg.includes('timeout') || msg.includes('fetch') || msg.includes('network')) return 'offline'
   if (e?.status === 429 || msg.includes('rate') || msg.includes('too many')) return 'rate-limit'
   if (msg.includes('expired')) return 'expired'
@@ -95,9 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendLink = useCallback(async (address: string) => {
     try {
       rememberReturnRoute()
+      lastDetail = null
       const { error } = await withTimeout(sendEmailSignIn(address.trim(), redirectTo()))
-      return error ? classify(error) : null
-    } catch (err) { return classify(err) }
+      return error ? classify(error, true) : null
+    } catch (err) { return classify(err, true) }
   }, [])
 
   const verifyCode = useCallback(async (address: string, code: string) => {
@@ -144,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ctx>(() => ({
     status, email, enabled: cloudEnabled, sendLink, verifyCode, googleAvailable, signInWithGoogle, signOut,
+    get lastErrorDetail() { return lastDetail },
     arrival, clearArrival: () => setArrival(null),
   }), [status, email, sendLink, verifyCode, googleAvailable, signInWithGoogle, signOut, arrival])
 

@@ -96,7 +96,12 @@ export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => v
               placeholder={t('auth.emailPh')} aria-invalid={!!error} aria-describedby={error ? 'auth-err' : undefined} data-autofocus
             />
           </label>
-          {errorText && <p id="auth-err" role="alert" className="text-[13px] text-ink">{errorText}</p>}
+          {errorText && (
+            <p id="auth-err" role="alert" className="text-[13px] leading-relaxed text-ink">
+              {errorText}
+              {error !== 'need-email' && auth.lastErrorDetail && <span className="mt-1 block text-[11px] text-faint">{t('auth.errDetail', { d: auth.lastErrorDetail })}</span>}
+            </p>
+          )}
           <button type="submit" className="btn btn-primary w-full" disabled={busy}>{busy ? t('auth.sending') : t('auth.send')}</button>
         </form>
       ) : (

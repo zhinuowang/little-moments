@@ -481,6 +481,8 @@ export const zh: Record<Key, string | readonly string[]> = {
   'auth.err.bad-code': '验证码不正确或已过期。请检查这 6 位数字，或重新发送验证码。',
   'auth.err.expired': '登录已过期，请重新发送验证码。',
   'auth.err.bad-email': '这个邮箱地址好像不太对。',
+  'auth.err.send-failed': '邮件服务暂时无法把验证码发送到这个邮箱。这台设备上的日记都很安全，请稍后再试，或换一个邮箱。',
+  'auth.errDetail': '技术信息：{d}',
   'auth.err.unknown': '登录时出了点问题。这台设备上的日记都很安全，请再试一次。',
   'settings.data': '你的数据',
   'settings.dataBody': '你在这里留下的一切——日记、照片、计划——只保存在这台设备的这个浏览器里，不会上传，也不会同步。清除浏览器数据会把它们一并删除，所以偶尔备份一下，是对未来的自己的一份温柔。',

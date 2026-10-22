@@ -494,6 +494,8 @@ export const en = {
   'auth.err.bad-code': "That code didn't match, or it has expired. Check the 6 digits, or send a new code.",
   'auth.err.expired': 'That sign-in has expired. Please send a new code.',
   'auth.err.bad-email': "That email address doesn't look right.",
+  'auth.err.send-failed': "The email service couldn't deliver a code to that address just now. Your diary on this device is safe — please try again later, or use another email.",
+  'auth.errDetail': 'Details for support: {d}',
   'auth.err.unknown': 'Something went wrong signing in. Your diary on this device is safe — please try again.',
   'settings.data': 'Your data',
   'settings.dataBody': 'Everything you make here — pages, photos, plans — stays only on this device, in this browser. Nothing is uploaded or synced. Clearing browser data erases it, so a backup now and then is a kind thing to do for future you.',

@@ -66,6 +66,11 @@ Supabase guide): host `smtp.resend.com`, port `465`, username `resend`, password
 `onboarding@resend.dev` and only to the Resend account's own address — enough to test the real
 code flow, not enough for other people's inboxes.
 
+**Seen in testing (2026-10-22):** a Resend account created with *Sign in with Apple → Hide My
+Email* has an `@privaterelay.appleid.com` account address, so the test sender refused a QQ
+recipient with `550 You can only send testing emails to your own email address`; Supabase returned
+HTTP 500 `unexpected_failure`. Test with the account's own address, or verify a domain.
+
 ## Email delivery (needed before the public release, not for development)
 
 Supabase's built-in email only reaches the project team's own address, 2 per hour — fine for
