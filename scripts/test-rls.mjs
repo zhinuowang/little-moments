@@ -1,0 +1,150 @@
+// Offline security test for supabase/migrations: runs the real SQL in an in-process Postgres
+// (PGlite) with small stand-ins for Supabase's `auth` and `storage` schemas, then tries every
+// way one user could read or change another user's journal.
+//
+//   npm run test:db
+//
+// Exit code 1 if any check fails.
+
+import { PGlite } from '@electric-sql/pglite'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+const A = '11111111-1111-4111-8111-111111111111'
+const B = '22222222-2222-4222-8222-222222222222'
+
+const db = new PGlite()
+let failed = 0
+let passed = 0
+const ok = (name) => { passed++; console.log(`  ✓ ${name}`) }
+const bad = (name, why) => { failed++; console.log(`  ✗ ${name}${why ? ` — ${why}` : ''}`) }
+
+async function expectRows(name, sql, n, params = []) {
+  try {
+    const r = await db.query(sql, params)
+    const got = r.affectedRows && !/^\s*select/i.test(sql) ? r.affectedRows : r.rows.length
+    got === n ? ok(name) : bad(name, `expected ${n} rows, got ${got}`)
+  } catch (e) { bad(name, e.message) }
+}
+async function expectError(name, sql, params = [], match) {
+  try {
+    await db.query(sql, params)
+    bad(name, 'was allowed')
+  } catch (e) {
+    if (match && !match.test(e.message)) bad(name, `wrong error: ${e.message}`)
+    else ok(name)
+  }
+}
+async function expectOk(name, sql, params = []) {
+  try { await db.query(sql, params); ok(name) } catch (e) { bad(name, e.message) }
+}
+
+async function as(who) {
+  await db.exec('reset role')
+  if (who === 'admin') return
+  if (who === 'anon') { await db.exec(`set role anon; select set_config('request.jwt.claim.sub', '', false)`); return }
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${who}', false)`)
+}
+
+// ── stand-ins for what Supabase provides ──
+await db.exec(`
+  create role anon nologin;
+  create role authenticated nologin;
+  create schema auth;
+  create table auth.users (id uuid primary key);
+  create function auth.uid() returns uuid language sql stable as $$
+    select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+  $$;
+  grant usage on schema auth to anon, authenticated;
+  grant execute on function auth.uid() to anon, authenticated;
+
+  create schema storage;
+  create table storage.buckets (
+    id text primary key, name text not null, public boolean default false,
+    file_size_limit bigint, allowed_mime_types text[]
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text references storage.buckets (id), name text not null, owner uuid
+  );
+  create function storage.foldername(name text) returns text[] language sql immutable as $$
+    select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+  $$;
+  alter table storage.objects enable row level security;
+  grant usage on schema storage to anon, authenticated;
+  grant select, insert, update, delete on storage.objects to anon, authenticated;
+  grant execute on function storage.foldername(text) to anon, authenticated;
+
+  grant usage on schema public to anon, authenticated;
+  insert into auth.users values ('${A}'), ('${B}');
+`)
+
+// ── the real migrations, twice (they must be safe to re-run) ──
+const dir = new URL('../supabase/migrations/', import.meta.url).pathname
+const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+for (let round = 1; round <= 2; round++) {
+  for (const f of files) {
+    try { await db.exec(readFileSync(join(dir, f), 'utf8')) } catch (e) { bad(`migration ${f} (run ${round})`, e.message) }
+  }
+}
+ok(`migrations applied twice: ${files.join(', ')}`)
+
+const entry = (id, title) => JSON.stringify({ id, title, text: 'private words', stickers: [{ kind: 'heart' }] })
+const now = new Date().toISOString()
+
+console.log('\nOwner can use their own data')
+await as(A)
+await expectOk('A adds a diary page', `insert into journal_entries (id, entry_date, data, client_updated_at) values ('e1', '2026-10-21', $1, $2)`, [entry('e1', 'A secret'), now])
+await expectOk('A adds a photo record', `insert into journal_photos (id, storage_path, mime_type, bytes, client_updated_at) values ('p1', '${A}/p1', 'image/jpeg', 2000, $1)`, [now])
+await expectOk('A adds a plan', `insert into plans (id, data, client_updated_at) values ('pl1', '{"title":"tea"}', $1)`, [now])
+await expectOk('A saves settings', `insert into user_settings (prefs, client_updated_at) values ('{"name":"A"}', $1)`, [now])
+await expectRows('A reads their page', `select * from journal_entries`, 1)
+await expectOk('A uploads a photo file to their folder', `insert into storage.objects (bucket_id, name, owner) values ('journal-photos', '${A}/p1', '${A}')`)
+await expectRows('A sees their photo file', `select * from storage.objects`, 1)
+
+console.log('\nAnother user can\'t see or touch it')
+await as(B)
+for (const t of ['journal_entries', 'journal_photos', 'plans', 'user_settings']) await expectRows(`B sees none of A's ${t}`, `select * from ${t}`, 0)
+await expectRows('B can\'t edit A\'s page', `update journal_entries set data = '{"title":"hacked"}' where id = 'e1'`, 0)
+await expectRows('B can\'t delete A\'s page', `delete from journal_entries where id = 'e1'`, 0)
+await expectRows('B can\'t soft-delete A\'s plan', `update plans set deleted_at = now() where id = 'pl1'`, 0)
+await expectError('B can\'t write a page into A\'s account', `insert into journal_entries (user_id, id, entry_date, data, client_updated_at) values ('${A}', 'x', '2026-10-21', '{}', now())`, [], /row-level security/)
+await expectError('B can\'t overwrite A\'s settings', `insert into user_settings (user_id, prefs, client_updated_at) values ('${A}', '{}', now())`, [], /row-level security/)
+await expectRows('B sees none of A\'s photo files', `select * from storage.objects`, 0)
+await expectError('B can\'t upload into A\'s folder', `insert into storage.objects (bucket_id, name, owner) values ('journal-photos', '${A}/evil', '${B}')`, [], /row-level security/)
+await expectRows('B can\'t delete A\'s photo file', `delete from storage.objects where name = '${A}/p1'`, 0)
+await expectError('B can\'t point a photo record at A\'s folder', `insert into journal_photos (id, storage_path, mime_type, bytes, client_updated_at) values ('p2', '${A}/p1', 'image/jpeg', 10, now())`, [], /check constraint/)
+await expectError('B can\'t use another bucket', `insert into storage.objects (bucket_id, name) values ('other', '${B}/x')`, [], /row-level security|foreign key/)
+await expectOk('B adds their own page', `insert into journal_entries (id, entry_date, data, client_updated_at) values ('e1', '2026-10-22', $1, now())`, [entry('e1', 'B page')])
+await expectRows('B sees only their own page', `select * from journal_entries where data->>'title' = 'B page'`, 1)
+
+console.log('\nSigned-out visitors get nothing')
+await as('anon')
+for (const t of ['journal_entries', 'plans', 'user_settings']) await expectError(`anon can't read ${t}`, `select * from ${t}`, [], /permission denied/)
+await expectError('anon can\'t add a page', `insert into journal_entries (id, entry_date, data, client_updated_at) values ('z', '2026-10-21', '{}', now())`, [], /permission denied/)
+await expectRows('anon sees no photo files', `select * from storage.objects`, 0)
+
+console.log('\nServer keeps the bookkeeping honest')
+await as(A)
+await expectOk('A edits their page (client tries to fake rev)', `update journal_entries set data = $1, rev = 999 where id = 'e1'`, [entry('e1', 'A edited')])
+{
+  const r = await db.query(`select rev from journal_entries where id = 'e1'`)
+  r.rows[0]?.rev == 2 ? ok('rev is bumped by the server (2), not set by the client') : bad('server rev', JSON.stringify(r.rows))
+}
+await expectError('A can\'t hand a page to B', `update journal_entries set user_id = '${B}' where id = 'e1'`, [], /row-level security|cannot change owner/)
+await expectError('oversized page is refused', `insert into journal_entries (id, entry_date, data, client_updated_at) values ('big', '2026-10-21', jsonb_build_object('text', repeat('x', 70000)), now())`, [], /check constraint/)
+await expectError('non-image photo type is refused', `insert into journal_photos (id, storage_path, mime_type, bytes, client_updated_at) values ('p3', '${A}/p3', 'text/html', 10, now())`, [], /check constraint/)
+
+console.log('\nDeleting an account removes only that account\'s rows')
+await as('admin')
+await db.exec(`delete from auth.users where id = '${A}'`)
+await expectRows('A\'s pages are gone', `select * from journal_entries where user_id = '${A}'`, 0)
+await expectRows('B\'s page is untouched', `select * from journal_entries where user_id = '${B}'`, 1)
+{
+  const r = await db.query(`select public from storage.buckets where id = 'journal-photos'`)
+  r.rows[0]?.public === false ? ok('photo bucket is private') : bad('photo bucket is private', JSON.stringify(r.rows))
+}
+
+console.log(`\n${passed} passed, ${failed} failed`)
+await db.close()
+process.exit(failed ? 1 : 0)

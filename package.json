@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "preview:pages": "BASE_PATH=/little-moments/ vite build --outDir dist-pages && BASE_PATH=/little-moments/ vite preview --outDir dist-pages --port 4174"
+    "preview:pages": "BASE_PATH=/little-moments/ vite build --outDir dist-pages && BASE_PATH=/little-moments/ vite preview --outDir dist-pages --port 4174",
+    "test:db": "node scripts/test-rls.mjs"
   },
   "dependencies": {
     "@chinese-fonts/xiaolai": "^3.0.0",
@@ -22,6 +23,7 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
