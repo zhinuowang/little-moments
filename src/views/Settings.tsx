@@ -7,6 +7,7 @@ import { play } from '../lib/sound'
 import { useApp } from '../store/AppContext'
 import { useAuth } from '../store/AuthContext'
 import { GoogleMark } from '../components/account/GoogleMark'
+import { SyncStatus } from '../components/ui/SyncStatus'
 import type { MotionPref } from '../types'
 
 function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -169,7 +170,8 @@ export function Settings() {
 /** Optional account. Shown only in builds with cloud sign-in configured; guest is the default. */
 function AccountSection() {
   const { t } = useI18n()
-  const { toast, profile } = useApp()
+  const { toast, profile, pendingChanges } = useApp()
+  const [unsynced, setUnsynced] = useState(0)
   const auth = useAuth()
   const [google, setGoogle] = useState<'checking' | 'yes' | 'off' | 'unreachable'>('checking')
   const [busy, setBusy] = useState(false)
@@ -187,7 +189,8 @@ function AccountSection() {
         <>
           <p className="text-[15px] text-ink">{t('settings.signedInAs', { email: auth.email ?? '…' })}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">{t('settings.accountData')}</p>
-          <button className="btn btn-quiet btn-sm mt-4 -ml-2" onClick={() => setConfirmOut(true)}>{t('settings.signOut')}</button>
+          <SyncStatus className="mt-2" />
+          <button className="btn btn-quiet btn-sm mt-4 -ml-2" onClick={async () => { setUnsynced(await pendingChanges().catch(() => 0)); setConfirmOut(true) }}>{t('settings.signOut')}</button>
         </>
       ) : (
         <>
@@ -209,7 +212,7 @@ function AccountSection() {
       <Confirm
         open={confirmOut}
         title={t('settings.signOutTitle')}
-        body={t('settings.signOutBody')}
+        body={unsynced > 0 ? `${t('settings.signOutBody')} ${t('settings.signOutPending', { n: unsynced })}` : t('settings.signOutBody')}
         confirmLabel={t('settings.signOut')}
         onCancel={() => setConfirmOut(false)}
         onConfirm={async () => { setConfirmOut(false); await auth.signOut(); toast(t('settings.signedOut')) }}

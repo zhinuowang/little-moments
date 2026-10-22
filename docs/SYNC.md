@@ -1,7 +1,10 @@
 # Cloud persistence plan (Phase 3)
 
-Status: design reviewed before implementation. Phase 3A (Google-only sign-in and per-account
-local data) is implemented on `develop`; 3B–3E follow, each tested and approved separately.
+Status: Phase 3A (Google-only sign-in, per-account local data) and Phase 3B (Plans and settings
+sync — `src/lib/cloud/sync.ts`, `src/store/useCloudSync.ts`) are on `develop`; 3C–3E follow,
+each tested and approved separately. The outbox, revs and pull cursor live in the account
+database's existing `kv` store (`outbox:…`, `rev:…`, `cursor:…`, `prefs:updatedAt`), so no
+IndexedDB version bump was needed and the guest database stays at v1.
 
 ## What exists today (inspected 2026-10-22)
 

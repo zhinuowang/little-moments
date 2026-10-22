@@ -5,6 +5,20 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Phase 3B — cloud saving for Plans and settings (signed-in accounts)
+- For a Google account, each Plan or settings change (including language) is saved on the device
+  and queued for the cloud in one transaction, then uploaded with revision-guarded writes; deletes
+  become cloud tombstones. Pull runs first, with a 2-minute overlap; an empty device never
+  overwrites or deletes cloud data. Conflicts: Plans edited on two devices keep both; a delete never
+  beats a newer edit; settings — newest wins.
+- Sync runs on start, after changes, on reconnect, on tab focus and on a back-off timer; it stops
+  safely if the profile changes mid-sync. Failed uploads, lost connections, expired sessions and
+  sign-outs keep every queued change on the device; sign-out says how many are waiting.
+- A quiet status line on Plans and in Settings → Account: Saved to cloud / Syncing / Saved on this
+  device · waiting to sync / Couldn't sync · Retry. Guests: unchanged, no cloud requests.
+- Bookkeeping lives in the account database's existing `kv` store — no database version bump; the
+  guest database is untouched. Diary pages and photos are not synced yet (Phase 3C).
+
 ### Phase 3A — Google or guest, with separate data per account
 - The welcome screen and Settings offer only **Continue with Google** and **Continue as Guest**;
   email sign-in (link and code), its email template and the `VITE_EMAIL_SIGNIN` setting are removed.

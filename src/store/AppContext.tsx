@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../i18n'
-import { GUEST_DB, accountDbName, entriesDb, initStorage, kvDb, photosDb, plansDb, switchDatabase } from '../db/db'
+import { GUEST_DB, accountDbName, entriesDb, initStorage, kvDb, photosDb, plansDb, putPlanQueued, putPrefsQueued, removePlanQueued, switchDatabase, syncDb } from '../db/db'
+import { useCloudSync, type SyncState } from './useCloudSync'
 import { forgetAllPhotoURLs } from '../lib/usePhoto'
 import { useAuth } from './AuthContext'
 import { setSoundEnabled } from '../lib/sound'
@@ -24,6 +25,11 @@ interface Ctx {
   savePlan: (p: Plan) => Promise<void>
   removePlan: (id: string) => Promise<void>
   isSaved: (activityId: string) => boolean
+  /** cloud sync for the signed-in account ('off' for guests) */
+  sync: SyncState
+  retrySync: () => void
+  /** how many local changes haven't reached the cloud yet (checked on demand, e.g. before sign-out) */
+  pendingChanges: () => Promise<number>
   toasts: Toast[]
   toast: (text: string, kind?: Toast['kind']) => void
   dismissToast: (id: number) => void
@@ -44,7 +50,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [plans, setPlans] = useState<Plan[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastId = useRef(0)
-  const { t } = useI18n()
+  const { t, lang, setLang } = useI18n()
   const auth = useAuth()
   // which device database to use; null while a saved session is still being checked
   const dbName = auth.status === 'checking' ? null
@@ -67,6 +73,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFresh(!pr && e.length === 0 && p.length === 0)
     setLoaded(true)
   }, [])
+
+  const accountMode = !!dbName && dbName !== GUEST_DB && auth.status === 'signed-in'
+  const langRef = useRef(lang)
+  langRef.current = lang
+  const applyingRemote = useRef(false)
+  const { sync, kick, retry } = useCloudSync({
+    userId: auth.userId,
+    dbName,
+    active: accountMode && loaded,
+    onApplied: () => {
+      // refresh what's on screen from this profile's database
+      void Promise.all([plansDb.all(), kvDb.get<Prefs>('prefs')]).then(([p, pr]) => {
+        setPlans(p.sort((a, b) => b.createdAt - a.createdAt))
+        setPrefsState({ ...defaultPrefs, ...(pr ?? {}) })
+      })
+    },
+    onRemotePrefs: (p) => {
+      const { lang: remoteLang, ...rest } = p
+      setPrefsState({ ...defaultPrefs, ...(rest as Prefs) })
+      if ((remoteLang === 'en' || remoteLang === 'zh') && remoteLang !== langRef.current) { applyingRemote.current = true; setLang(remoteLang) }
+    },
+    lang: () => langRef.current,
+  })
+
+  // a language change made on this device is a settings change for the account
+  const lastLang = useRef(lang)
+  useEffect(() => {
+    if (lastLang.current === lang) return
+    lastLang.current = lang
+    if (applyingRemote.current) { applyingRemote.current = false; return }
+    if (!accountMode || !loaded) return
+    void putPrefsQueued(prefs, Date.now()).then(kick).catch(() => {})
+  }, [lang]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // load (or switch to) the right profile; switching never deletes anything
   useEffect(() => {
@@ -92,10 +131,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setPrefs = useCallback((patch: Partial<Prefs>) => {
     setPrefsState((cur) => {
       const next = { ...cur, ...patch }
-      kvDb.set('prefs', next).catch(() => toast(t('common.settingsFail'), 'error'))
+      const saved = accountMode ? putPrefsQueued(next, Date.now()).then(kick) : kvDb.set('prefs', next)
+      saved.catch(() => toast(t('common.settingsFail'), 'error'))
       return next
     })
-  }, [toast, t])
+  }, [toast, t, accountMode, kick])
 
   const saveEntry = useCallback(async (e: JournalEntry) => {
     const prev = entries.find((x) => x.id === e.id)
@@ -123,25 +163,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const savePlan = useCallback(async (p: Plan) => {
     try {
-      await plansDb.put(p)
+      // signed in: saved on the device and queued for the cloud in one step
+      if (accountMode) await putPlanQueued(p); else await plansDb.put(p)
     } catch {
       toast(t('plans.saveFail'), 'error')
       return
     }
     setPlans((list) => [p, ...list.filter((x) => x.id !== p.id)].sort((a, b) => b.createdAt - a.createdAt))
-  }, [toast, t])
+    if (accountMode) kick()
+  }, [toast, t, accountMode, kick])
 
   const removePlan = useCallback(async (id: string) => {
-    await plansDb.remove(id)
+    if (accountMode) await removePlanQueued(id); else await plansDb.remove(id)
     setPlans((list) => list.filter((x) => x.id !== id))
-  }, [])
+    if (accountMode) kick()
+  }, [accountMode, kick])
 
   const isSaved = useCallback((activityId: string) => plans.some((p) => p.activityId === activityId), [plans])
 
   const value = useMemo<Ctx>(() => ({
     loaded, profile: dbName && dbName !== GUEST_DB ? 'account' : 'guest', fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
-    isSaved, toasts, toast, dismissToast, reload,
-  }), [loaded, dbName, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
+    isSaved, sync, retrySync: retry, pendingChanges: () => (accountMode ? syncDb.outboxCount() : Promise.resolve(0)),
+    toasts, toast, dismissToast, reload,
+  }), [loaded, dbName, sync, retry, accountMode, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

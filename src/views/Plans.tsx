@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { ActivityCard, useLocalized } from '../components/ActivityBits'
 import { ActivityArt, CategoryArt } from '../components/art/Icons'
 import { Confirm, EmptyState, PageTitle, Sheet } from '../components/ui/Bits'
+import { SyncStatus } from '../components/ui/SyncStatus'
 import { ACTIVITY_BY_ID } from '../data/activities'
 import { CATEGORIES } from '../data/meta'
 import { useI18n, type Key } from '../i18n'
@@ -53,6 +54,7 @@ export function Plans() {
       <PageTitle title={t('plans.title')} subtitle={t('plans.subtitle')}>
         <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>+ {t('plans.add')}</button>
       </PageTitle>
+      <SyncStatus className="-mt-5 mb-6" />
 
       {plans.length === 0 ? (
         <EmptyState momo="curious" title={t('plans.empty.title')}>

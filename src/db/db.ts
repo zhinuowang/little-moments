@@ -137,3 +137,144 @@ export async function initStorage() {
   await db()
   return storageAvailable
 }
+
+/* ───────────────────────── sync bookkeeping (account databases only) ─────────────────────────
+ * Kept in the existing `kv` store, so no database version bump is needed: the guest database
+ * stays exactly at v1 and older app versions can still open every database.
+ *   outbox:<table>:<id>  → OutboxItem (one per record; later edits replace the op, keep baseRev)
+ *   rev:<table>:<id>     → last server rev this device has for that record
+ *   cursor:<table>       → ISO time of the newest server change pulled
+ *   prefs:updatedAt      → when settings last changed on this device (ms)
+ */
+
+export type SyncTable = 'plans' | 'settings'
+
+export interface OutboxItem {
+  table: SyncTable
+  id: string
+  op: 'upsert' | 'delete'
+  /** the server rev this change was made from; null = never uploaded */
+  baseRev: number | null
+  at: number
+}
+
+const outboxKey = (table: SyncTable, id: string) => `outbox:${table}:${id}`
+const revKey = (table: SyncTable, id: string) => `rev:${table}:${id}`
+
+async function kvAll(prefix: string): Promise<[string, unknown][]> {
+  const d = await db()
+  if (!d) return [...memory.kv.entries()].filter(([k]) => k.startsWith(prefix))
+  const range = IDBKeyRange.bound(prefix, prefix + '￿')
+  const tx = d.transaction('kv')
+  const [keys, values] = await Promise.all([tx.store.getAllKeys(range), tx.store.getAll(range)])
+  return keys.map((k, i) => [String(k), values[i]])
+}
+
+/** Queue entry for a change, merged with any change still waiting for the same record. */
+function nextOutbox(prev: OutboxItem | undefined, table: SyncTable, id: string, op: OutboxItem['op'], currentRev: number | null): OutboxItem | null {
+  const baseRev = prev ? prev.baseRev : currentRev
+  // created and deleted before ever reaching the cloud: nothing to tell the server
+  if (op === 'delete' && baseRev === null) return null
+  return { table, id, op, baseRev, at: Date.now() }
+}
+
+export const syncDb = {
+  outbox: async () => (await kvAll('outbox:')).map(([, v]) => v as OutboxItem).sort((a, b) => a.at - b.at),
+  outboxCount: async () => (await kvAll('outbox:')).length,
+  revs: async (table: SyncTable) => new Map((await kvAll(`rev:${table}:`)).map(([k, v]) => [k.slice(`rev:${table}:`.length), v as number])),
+  getRev: (table: SyncTable, id: string) => kvDb.get<number>(revKey(table, id)),
+  setRev: (table: SyncTable, id: string, rev: number) => kvDb.set(revKey(table, id), rev),
+  getCursor: (table: SyncTable) => kvDb.get<string>(`cursor:${table}`),
+  setCursor: (table: SyncTable, iso: string) => kvDb.set(`cursor:${table}`, iso),
+  hasOutbox: async (table: SyncTable, id: string) => (await kvDb.get(outboxKey(table, id))) !== undefined,
+  /**
+   * After the server confirmed `item`: record the new rev and remove the queue entry — unless a
+   * newer local edit was queued meanwhile, in which case that edit is re-based on the new rev
+   * (so it isn't mistaken for a conflict). One transaction.
+   */
+  async confirmOutbox(item: OutboxItem, newRev: number | null) {
+    const k = outboxKey(item.table, item.id)
+    const d = await db()
+    if (!d) {
+      const cur = memory.kv.get(k) as OutboxItem | undefined
+      if (newRev !== null) memory.kv.set(revKey(item.table, item.id), newRev)
+      if (cur?.at === item.at) memory.kv.delete(k); else if (cur) memory.kv.set(k, { ...cur, baseRev: newRev })
+      return
+    }
+    const tx = d.transaction('kv', 'readwrite')
+    const cur = (await tx.store.get(k)) as OutboxItem | undefined
+    if (newRev !== null) await tx.store.put(newRev, revKey(item.table, item.id))
+    if (cur && cur.at === item.at) await tx.store.delete(k)
+    else if (cur) await tx.store.put({ ...cur, baseRev: newRev }, k)
+    await tx.done
+  },
+  async dropOutbox(table: SyncTable, id: string) {
+    const d = await db()
+    if (!d) { memory.kv.delete(outboxKey(table, id)); return }
+    await d.delete('kv', outboxKey(table, id))
+  },
+}
+
+/** Save a plan and queue it for upload in ONE transaction, so a change can never be saved unqueued. */
+export async function putPlanQueued(p: Plan) {
+  const d = await db()
+  if (!d) {
+    memory.plans.set(p.id, p)
+    const it = nextOutbox(memory.kv.get(outboxKey('plans', p.id)) as OutboxItem | undefined, 'plans', p.id, 'upsert', (memory.kv.get(revKey('plans', p.id)) as number | undefined) ?? null)
+    if (it) memory.kv.set(outboxKey('plans', p.id), it)
+    return
+  }
+  const tx = d.transaction(['plans', 'kv'], 'readwrite')
+  const kv = tx.objectStore('kv')
+  const [prev, rev] = await Promise.all([kv.get(outboxKey('plans', p.id)) as Promise<OutboxItem | undefined>, kv.get(revKey('plans', p.id)) as Promise<number | undefined>])
+  await tx.objectStore('plans').put(p)
+  const it = nextOutbox(prev, 'plans', p.id, 'upsert', rev ?? null)
+  if (it) await kv.put(it, outboxKey('plans', p.id))
+  await tx.done
+}
+
+/** Remove a plan locally and queue a cloud tombstone in one transaction. */
+export async function removePlanQueued(id: string) {
+  const d = await db()
+  if (!d) {
+    memory.plans.delete(id)
+    const it = nextOutbox(memory.kv.get(outboxKey('plans', id)) as OutboxItem | undefined, 'plans', id, 'delete', (memory.kv.get(revKey('plans', id)) as number | undefined) ?? null)
+    if (it) memory.kv.set(outboxKey('plans', id), it); else memory.kv.delete(outboxKey('plans', id))
+    return
+  }
+  const tx = d.transaction(['plans', 'kv'], 'readwrite')
+  const kv = tx.objectStore('kv')
+  const [prev, rev] = await Promise.all([kv.get(outboxKey('plans', id)) as Promise<OutboxItem | undefined>, kv.get(revKey('plans', id)) as Promise<number | undefined>])
+  await tx.objectStore('plans').delete(id)
+  const it = nextOutbox(prev, 'plans', id, 'delete', rev ?? null)
+  if (it) await kv.put(it, outboxKey('plans', id)); else await kv.delete(outboxKey('plans', id))
+  await tx.done
+}
+
+/** Save settings and queue them in one transaction. */
+export async function putPrefsQueued(prefs: unknown, updatedAt: number) {
+  const d = await db()
+  if (!d) {
+    memory.kv.set('prefs', prefs); memory.kv.set('prefs:updatedAt', updatedAt)
+    const it = nextOutbox(memory.kv.get(outboxKey('settings', 'me')) as OutboxItem | undefined, 'settings', 'me', 'upsert', (memory.kv.get(revKey('settings', 'me')) as number | undefined) ?? null)
+    if (it) memory.kv.set(outboxKey('settings', 'me'), it)
+    return
+  }
+  const tx = d.transaction('kv', 'readwrite')
+  const [prev, rev] = await Promise.all([tx.store.get(outboxKey('settings', 'me')) as Promise<OutboxItem | undefined>, tx.store.get(revKey('settings', 'me')) as Promise<number | undefined>])
+  await tx.store.put(prefs, 'prefs')
+  await tx.store.put(updatedAt, 'prefs:updatedAt')
+  const it = nextOutbox(prev, 'settings', 'me', 'upsert', rev ?? null)
+  if (it) await tx.store.put(it, outboxKey('settings', 'me'))
+  await tx.done
+}
+
+/** Apply a record that came from the cloud (and remember its rev) in one transaction. */
+export async function applyRemotePlan(p: Plan | null, id: string, rev: number) {
+  const d = await db()
+  if (!d) { if (p) memory.plans.set(id, p); else memory.plans.delete(id); memory.kv.set(revKey('plans', id), rev); return }
+  const tx = d.transaction(['plans', 'kv'], 'readwrite')
+  if (p) await tx.objectStore('plans').put(p); else await tx.objectStore('plans').delete(id)
+  await tx.objectStore('kv').put(rev, revKey('plans', id))
+  await tx.done
+}
