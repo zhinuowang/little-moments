@@ -5,6 +5,19 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Phase 3C — cloud saving for Diary pages and photos (signed-in accounts)
+- Pages (dates, moods, stickers, layouts, frames, place, seal, photo ids) sync to
+  `journal_entries`; photos upload to the private `journal-photos/<user id>/` folder before the page
+  that uses them, and a fresh browser downloads them (in the background and when shown).
+- Same safety as Plans: saved here + queued in one transaction, revision-guarded writes, tombstones
+  for deletes, both versions kept when a page was written on two devices ("(2)" copy), a delete
+  never beats newer writing, pull never overwrites a page that exists here but was never uploaded.
+- **Existing pages are never uploaded automatically.** Pages already in an account database when
+  diary sync first runs there stay local — even when edited — until the person taps **Upload** in a
+  quiet notice on the Diary shelf, which also offers **Download a backup**. Uploads are copies.
+- Photo files in the cloud are never deleted in this phase (removing a photo removes the local copy).
+- Sync status line on the Diary shelf and in month notebooks.
+
 ### Phase 3B — cloud saving for Plans and settings (signed-in accounts)
 - For a Google account, each Plan or settings change (including language) is saved on the device
   and queued for the cloud in one transaction, then uploaded with revision-guarded writes; deletes

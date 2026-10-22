@@ -1,6 +1,8 @@
 # Cloud persistence plan (Phase 3)
 
-Status: Phase 3A (Google-only sign-in, per-account local data) and Phase 3B (Plans and settings
+Status: Phase 3A (Google-only sign-in, per-account local data), Phase 3B (Plans and settings
+sync) and Phase 3C (Diary pages and photos; existing pages upload only with explicit consent —
+`sync:entriesSince` / `sync:entriesConsent`) are on `develop`. Phase 3B (Plans and settings
 sync — `src/lib/cloud/sync.ts`, `src/store/useCloudSync.ts`) are on `develop`; 3C–3E follow,
 each tested and approved separately. The outbox, revs and pull cursor live in the account
 database's existing `kv` store (`outbox:…`, `rev:…`, `cursor:…`, `prefs:updatedAt`), so no

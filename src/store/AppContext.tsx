@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../i18n'
-import { GUEST_DB, accountDbName, entriesDb, initStorage, kvDb, photosDb, plansDb, putPlanQueued, putPrefsQueued, removePlanQueued, switchDatabase, syncDb } from '../db/db'
+import { GUEST_DB, accountDbName, consentUploadEntries, currentDatabase, entriesDb, initStorage, kvDb, localOnlyEntries, markDiarySyncStart, photosDb, plansDb, putEntrySynced, putPlanQueued, putPrefsQueued, removeEntrySynced, removePlanQueued, switchDatabase, syncDb } from '../db/db'
+import { getClient } from '../lib/cloud/client'
+import { downloadPhoto } from '../lib/cloud/sync'
 import { useCloudSync, type SyncState } from './useCloudSync'
-import { forgetAllPhotoURLs } from '../lib/usePhoto'
+import { forgetAllPhotoURLs, setRemotePhotoFetcher } from '../lib/usePhoto'
 import { useAuth } from './AuthContext'
 import { setSoundEnabled } from '../lib/sound'
 import { defaultPrefs, type JournalEntry, type Plan, type Prefs } from '../types'
@@ -28,6 +30,10 @@ interface Ctx {
   /** cloud sync for the signed-in account ('off' for guests) */
   sync: SyncState
   retrySync: () => void
+  /** signed in: diary pages on this device that predate diary sync and are not in the cloud */
+  localOnlyPages: number
+  /** the person agreed to upload those pages (copies — they stay on the device) */
+  uploadLocalOnlyPages: () => Promise<number>
   /** how many local changes haven't reached the cloud yet (checked on demand, e.g. before sign-out) */
   pendingChanges: () => Promise<number>
   toasts: Toast[]
@@ -48,6 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefsState] = useState<Prefs>(defaultPrefs)
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
+  const [localOnlyPages, setLocalOnlyPages] = useState(0)
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastId = useRef(0)
   const { t, lang, setLang } = useI18n()
@@ -84,9 +91,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     active: accountMode && loaded,
     onApplied: () => {
       // refresh what's on screen from this profile's database
-      void Promise.all([plansDb.all(), kvDb.get<Prefs>('prefs')]).then(([p, pr]) => {
+      const expected = dbName
+      void Promise.all([plansDb.all(), kvDb.get<Prefs>('prefs'), entriesDb.all(), localOnlyEntries()]).then(([p, pr, e, lo]) => {
+        if (currentDatabase() !== expected) return
         setPlans(p.sort((a, b) => b.createdAt - a.createdAt))
         setPrefsState({ ...defaultPrefs, ...(pr ?? {}) })
+        setEntries(e.sort(byDateDesc))
+        setLocalOnlyPages(lo.length)
       })
     },
     onRemotePrefs: (p) => {
@@ -115,10 +126,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ;(async () => {
       await switchDatabase(dbName)
       forgetAllPhotoURLs()
+      if (dbName !== GUEST_DB) {
+        // pages already here before diary sync started stay local until the person agrees
+        await markDiarySyncStart().catch(() => {})
+        setLocalOnlyPages((await localOnlyEntries().catch(() => [])).length)
+      } else setLocalOnlyPages(0)
       if (alive) await reload()
     })()
     return () => { alive = false }
   }, [dbName, reload])
+
+  // a fresh device can show photos still in the cloud: fetched privately, kept in this profile
+  useEffect(() => {
+    if (!accountMode || !auth.userId || !dbName) { setRemotePhotoFetcher(null); return }
+    const uid = auth.userId
+    const expected = dbName
+    setRemotePhotoFetcher(async (id) => {
+      const blob = await downloadPhoto(await getClient(), uid, id)
+      if (blob && currentDatabase() === expected) await photosDb.put({ id, blob, createdAt: Date.now() })
+      return currentDatabase() === expected ? blob : null
+    })
+    return () => setRemotePhotoFetcher(null)
+  }, [accountMode, auth.userId, dbName])
 
   // apply motion + sound preferences globally
   useEffect(() => {
@@ -140,7 +169,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveEntry = useCallback(async (e: JournalEntry) => {
     const prev = entries.find((x) => x.id === e.id)
     try {
-      await entriesDb.put(e)
+      // signed in: saved here and (for pages that sync) queued for the cloud in one step
+      if (accountMode) await putEntrySynced(e); else await entriesDb.put(e)
     } catch (err) {
       const quota = err instanceof DOMException && err.name === 'QuotaExceededError'
       toast(quota ? t('editor.saveFull') : t('editor.saveFail'), 'error')
@@ -152,14 +182,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       for (const pid of prev.photoIds) if (pid && !keep.has(pid)) await photosDb.remove(pid).catch(() => {})
     }
     setEntries((list) => [...list.filter((x) => x.id !== e.id), e].sort(byDateDesc))
-  }, [entries, toast, t])
+    if (accountMode) kick()
+  }, [entries, toast, t, accountMode, kick])
 
   const deleteEntry = useCallback(async (id: string) => {
     const e = entries.find((x) => x.id === id)
-    await entriesDb.remove(id)
+    if (accountMode) await removeEntrySynced(id); else await entriesDb.remove(id)
+    // photos: removed from this device; in the cloud their files are kept (never deleted in 3C)
     if (e) for (const pid of e.photoIds) if (pid) await photosDb.remove(pid).catch(() => {})
     setEntries((list) => list.filter((x) => x.id !== id))
-  }, [entries])
+    if (accountMode) { kick(); setLocalOnlyPages((await localOnlyEntries().catch(() => [])).length) }
+  }, [entries, accountMode, kick])
 
   const savePlan = useCallback(async (p: Plan) => {
     try {
@@ -183,9 +216,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Ctx>(() => ({
     loaded, profile: dbName && dbName !== GUEST_DB ? 'account' : 'guest', fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan,
-    isSaved, sync, retrySync: retry, pendingChanges: () => (accountMode ? syncDb.outboxCount() : Promise.resolve(0)),
+    isSaved, sync, retrySync: retry, localOnlyPages,
+    uploadLocalOnlyPages: async () => {
+      if (!accountMode) return 0
+      const n = await consentUploadEntries()
+      setLocalOnlyPages(0)
+      kick()
+      return n
+    }, pendingChanges: () => (accountMode ? syncDb.outboxCount() : Promise.resolve(0)),
     toasts, toast, dismissToast, reload,
-  }), [loaded, dbName, sync, retry, accountMode, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
+  }), [loaded, dbName, sync, retry, accountMode, localOnlyPages, kick, fresh, storageOk, prefs, setPrefs, entries, saveEntry, deleteEntry, plans, savePlan, removePlan, isSaved, toasts, toast, dismissToast, reload])
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>
 }

@@ -5,6 +5,8 @@ import { JournalPage } from '../components/journal/JournalPage'
 import { LiveMomo } from '../components/momo/LiveMomo'
 import type { MomoState } from '../components/momo/Momo'
 import { Confirm, EmptyState, MomoLine } from '../components/ui/Bits'
+import { SyncStatus } from '../components/ui/SyncStatus'
+import { LocalPagesNotice } from '../components/account/LocalPagesNotice'
 import { useI18n } from '../i18n'
 import { play } from '../lib/sound'
 import { dateLocale, fromISODate, prettyDate, toISODate } from '../lib/util'
@@ -83,9 +85,12 @@ function Shelf({ query }: { query: URLSearchParams }) {
         <div>
           <h1 className="text-[28px] leading-tight">{t('diary.title')}</h1>
           <p className="mt-1 text-sm text-muted">{count === 1 ? t('diary.count1') : count ? t('diary.countN', { n: count }) : t('diary.shelfSub')}</p>
+          <SyncStatus className="mt-1" />
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => navigate('journal/new')}>+ {t('diary.new')}</button>
       </header>
+
+      <LocalPagesNotice />
 
       <div className="mb-6 flex items-center justify-center gap-3">
         <button className="icon-btn text-muted hover:text-ink" onClick={() => changeYear(year - 1)} disabled={year <= firstYear} aria-label={t('diary.prevYear')}>←</button>
@@ -410,6 +415,7 @@ function MonthBook({ month }: { month: string }) {
         <div className="min-w-0 flex-1">
           <h1 className="text-[26px] leading-tight">{title}</h1>
           <p className="mt-1 text-sm text-muted">{list.length === 1 ? t('diary.monthCount1') : t('diary.monthCountN', { n: list.length })}{month === nowKey && ` · ${t('diary.thisMonth')}`}</p>
+          <SyncStatus className="mt-1" />
         </div>
         {!selecting && <button className="btn btn-primary btn-sm" onClick={() => navigate(`journal/new?date=${newDate}`)}>+ {t('diary.new')}</button>}
       </motion.header>

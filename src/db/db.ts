@@ -84,6 +84,11 @@ async function del(store: StoreName, id: string) {
 
 export const entriesDb = {
   all: () => getAll<JournalEntry>('entries'),
+  async get(id: string): Promise<JournalEntry | undefined> {
+    const d = await db()
+    if (!d) return memory.entries.get(id) as JournalEntry | undefined
+    return d.get('entries', id)
+  },
   put: (e: JournalEntry) => put('entries', e),
   remove: (id: string) => del('entries', id),
 }
@@ -147,7 +152,7 @@ export async function initStorage() {
  *   prefs:updatedAt      → when settings last changed on this device (ms)
  */
 
-export type SyncTable = 'plans' | 'settings'
+export type SyncTable = 'plans' | 'settings' | 'entries' | 'photos'
 
 export interface OutboxItem {
   table: SyncTable
@@ -276,5 +281,101 @@ export async function applyRemotePlan(p: Plan | null, id: string, rev: number) {
   const tx = d.transaction(['plans', 'kv'], 'readwrite')
   if (p) await tx.objectStore('plans').put(p); else await tx.objectStore('plans').delete(id)
   await tx.objectStore('kv').put(rev, revKey('plans', id))
+  await tx.done
+}
+
+/* ───────────────────────── diary pages (Phase 3C) ─────────────────────────
+ * Pages that were already on this device before diary sync started here are NEVER uploaded
+ * automatically — not even when edited — until the person explicitly agrees (Diary → Upload).
+ *   sync:entriesSince   → when diary sync first ran in this account database (ms)
+ *   sync:entriesConsent → true once the person chose to upload their earlier pages
+ * A page syncs automatically if it came from the cloud (has a rev), was queued before, was
+ * created after `entriesSince`, or consent was given.
+ */
+
+async function entrySyncs(kv: { get: (k: string) => Promise<unknown> }, e: Pick<JournalEntry, 'id' | 'createdAt'>) {
+  const [since, consent, rev, queued] = await Promise.all([
+    kv.get('sync:entriesSince') as Promise<number | undefined>,
+    kv.get('sync:entriesConsent') as Promise<boolean | undefined>,
+    kv.get(revKey('entries', e.id)) as Promise<number | undefined>,
+    kv.get(outboxKey('entries', e.id)) as Promise<OutboxItem | undefined>,
+  ])
+  return { syncs: consent === true || rev !== undefined || queued !== undefined || (since !== undefined && e.createdAt >= since), rev: rev ?? null, queued }
+}
+
+/** First run of diary sync in this account database: remember when, so earlier pages stay local. */
+export async function markDiarySyncStart() {
+  if ((await kvDb.get('sync:entriesSince')) === undefined) await kvDb.set('sync:entriesSince', Date.now())
+}
+
+/** Save a page; if it is one that syncs, queue it in the same transaction. */
+export async function putEntrySynced(e: JournalEntry) {
+  const d = await db()
+  if (!d) { memory.entries.set(e.id, e); return }
+  const tx = d.transaction(['entries', 'kv'], 'readwrite')
+  const kv = tx.objectStore('kv')
+  const { syncs, rev, queued } = await entrySyncs(kv, e)
+  await tx.objectStore('entries').put(e)
+  if (syncs) {
+    const it = nextOutbox(queued, 'entries', e.id, 'upsert', rev)
+    if (it) await kv.put(it, outboxKey('entries', e.id))
+  }
+  await tx.done
+}
+
+/** Delete a page locally; if it was in the cloud (or queued), queue a cloud tombstone too. */
+export async function removeEntrySynced(id: string) {
+  const d = await db()
+  if (!d) { memory.entries.delete(id); return }
+  const tx = d.transaction(['entries', 'kv'], 'readwrite')
+  const kv = tx.objectStore('kv')
+  const [rev, queued] = await Promise.all([kv.get(revKey('entries', id)) as Promise<number | undefined>, kv.get(outboxKey('entries', id)) as Promise<OutboxItem | undefined>])
+  await tx.objectStore('entries').delete(id)
+  if (rev !== undefined || queued) {
+    const it = nextOutbox(queued, 'entries', id, 'delete', rev ?? null)
+    if (it) await kv.put(it, outboxKey('entries', id)); else await kv.delete(outboxKey('entries', id))
+  }
+  await tx.done
+}
+
+/** Pages on this device that are not in the cloud and won't upload without explicit consent. */
+export async function localOnlyEntries(): Promise<JournalEntry[]> {
+  const [all, revs, outbox, since, consent] = await Promise.all([
+    entriesDb.all(), syncDb.revs('entries'), kvAll('outbox:entries:'),
+    kvDb.get<number>('sync:entriesSince'), kvDb.get<boolean>('sync:entriesConsent'),
+  ])
+  if (consent === true) return []
+  const queued = new Set(outbox.map(([k]) => k.slice('outbox:entries:'.length)))
+  return all.filter((e) => !revs.has(e.id) && !queued.has(e.id) && (since === undefined || e.createdAt < since))
+}
+
+/** The person agreed: queue every local-only page for upload (copies — the pages stay here). */
+export async function consentUploadEntries() {
+  const pending = await localOnlyEntries()
+  await kvDb.set('sync:entriesConsent', true)
+  for (const e of pending) await putEntrySynced(e)
+  return pending.length
+}
+
+/** Apply a page that came from the cloud (and remember its rev) in one transaction. */
+export async function applyRemoteEntry(e: JournalEntry | null, id: string, rev: number) {
+  const d = await db()
+  if (!d) { if (e) memory.entries.set(id, e); else memory.entries.delete(id); memory.kv.set(revKey('entries', id), rev); return }
+  const tx = d.transaction(['entries', 'kv'], 'readwrite')
+  if (e) await tx.objectStore('entries').put(e); else await tx.objectStore('entries').delete(id)
+  await tx.objectStore('kv').put(rev, revKey('entries', id))
+  await tx.done
+}
+
+/** Queue a page that must be (re)uploaded — used for a conflict copy. */
+export async function putEntryQueued(e: JournalEntry) {
+  const d = await db()
+  if (!d) { memory.entries.set(e.id, e); return }
+  const tx = d.transaction(['entries', 'kv'], 'readwrite')
+  const kv = tx.objectStore('kv')
+  const [prev, rev] = await Promise.all([kv.get(outboxKey('entries', e.id)) as Promise<OutboxItem | undefined>, kv.get(revKey('entries', e.id)) as Promise<number | undefined>])
+  await tx.objectStore('entries').put(e)
+  const it = nextOutbox(prev, 'entries', e.id, 'upsert', rev ?? null)
+  if (it) await kv.put(it, outboxKey('entries', e.id))
   await tx.done
 }
