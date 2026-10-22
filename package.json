@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "preview:pages": "BASE_PATH=/little-moments/ vite build --outDir dist-pages && BASE_PATH=/little-moments/ vite preview --outDir dist-pages --port 4174",
-    "test:db": "node scripts/test-rls.mjs"
+    "test:db": "node scripts/test-rls.mjs",
+    "check:china": "node scripts/china-reachability.mjs"
   },
   "dependencies": {
     "@chinese-fonts/xiaolai": "^3.0.0",

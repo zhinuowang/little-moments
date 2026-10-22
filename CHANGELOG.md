@@ -11,6 +11,9 @@ each released version has a matching Git tag.
   sync, and a private `journal-photos` storage bucket limited to each user's own folder.
 - `npm run test:db`: 37 offline checks (PGlite) that one user can never read or change another's
   data and signed-out visitors get nothing; runs in CI.
+- `docs/AUTH.md`: sign-in design for North America and mainland China (email code first, optional
+  Google, guest by default), with measured reachability from mainland China and email-delivery options.
+- `npm run check:china`: re-runnable reachability measurement from mainland-China probes.
 - Build-time Supabase settings (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`); sync stays off
   without them, and secret / service-role keys are refused.
 
