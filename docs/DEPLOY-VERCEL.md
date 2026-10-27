@@ -43,6 +43,15 @@ a revert commit.
 - The folder's `.vercel/` link is gitignored. If `vercel link` adds a `VERCEL_OIDC_TOKEN` to
   `.env.local`, it can be removed — the app doesn't use it.
 
+## Launch-day change to the privacy policy
+
+The policy at `public/privacy.html` is final except for its effective date. On launch day, before the
+release candidate is approved, make one commit on `develop` that:
+1. replaces `[public launch date]` and `[正式上线日期]` with the date (e.g. `3 November 2026` /
+   `2026 年 11 月 3 日`), and sets "Last updated" to the same date in both languages;
+2. removes the dashed "Draft — not yet in effect" banner (and its comment).
+Then check the preview, and push that exact commit to `release` only after approval.
+
 ## Vercel Dashboard settings
 
 **New Project → Import Git Repository → `zhinuowang/little-moments`**
