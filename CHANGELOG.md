@@ -29,8 +29,10 @@ each released version has a matching Git tag.
 - `public/privacy.html`: bilingual (English / 简体中文) Privacy Policy, a plain page that needs no
   account and no JavaScript. It covers what is stored and where (Supabase, Oregon), the absence of
   ads, analytics and tracking, device copies, retention, rights, and a manual account-deletion
-  process that includes private photo files. It is a **draft** until the owner fills in the marked
-  details (operator name, country, contact email, dates, response time).
+  process that includes private photo files. Operator details are confirmed: Little Moments, operated
+  from Canada, with cloud data hosted in the United States (Supabase, Oregon), and contact
+  littlemomentapp.support@gmail.com. It stays a **draft** until the effective date, the deletion time
+  frame (30 days proposed) and the minimum age (16+ proposed) are confirmed.
 - A "Privacy Policy" link on the welcome screen and in Settings → About. Signed-in accounts also
   see where to request deletion.
 - Settings now describes the signed-in case correctly: data is also saved to the cloud, and
