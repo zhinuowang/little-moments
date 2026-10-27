@@ -37,7 +37,8 @@ It changes permissions and the photo upload rule only. No rows or files are touc
    Then **Storage → journal-photos** → download the files.
 2. **SQL Editor → New query**: type `begin;`, paste the whole file, type `commit;` and **Run**.
 3. Record the date in the table above.
-4. If something goes wrong, run `rollback/20261027000000_prelaunch_hardening.down.sql` the same way. It
+4. If something goes wrong, paste and run `rollback/20261027000000_prelaunch_hardening.down.sql` as it is
+   (it has its own `begin;`/`commit;`). It
    restores the original upload rule exactly and removes the limit function. Its Part B (commented out)
    re-grants the removed privileges, but only use it if a problem is traced to them.
 
