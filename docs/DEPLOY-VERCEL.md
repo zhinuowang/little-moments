@@ -24,11 +24,22 @@ a revert commit.
 - **Production Branch:** `release` (created at `a1aa56d` with the owner's approval; nothing public yet).
 - **Ignored Build Step:** builds only `develop` and `release`:
   `if [ "$VERCEL_GIT_COMMIT_REF" = "develop" ] || [ "$VERCEL_GIT_COMMIT_REF" = "release" ]; then exit 1; else exit 0; fi`
-- **Deployment Protection:** Vercel Authentication on *all deployments except custom domains*
-  (so `little-moments-eta.vercel.app` is protected too). Change to *Preview only* when a public
-  release is approved.
+- **Deployment Protection:** Vercel Authentication on **All Deployments** (`ssoProtection.deploymentType
+  = "all"`), so every URL — production domain included — needs a Vercel login. Keep it there until a
+  public release is approved; only then, after checking the production deployment is the approved
+  `release` commit, switch to *Standard Protection*.
+  - Note: the default *Standard Protection* (`all_except_custom_domains`) does **not** protect the
+    production domain, even a `*.vercel.app` one like `little-moments-eta.vercel.app`.
 - Domains: production `little-moments-eta.vercel.app`; stable `develop` preview
   `little-moments-git-develop-nora-740d.vercel.app`.
+- **The first deployment becomes Production.** On 2026-10-27 the project's first build, `develop` at
+  `c1a19c1`, was deployed with target `production` (`isFirstBranchDeployment: true`), although the
+  Production Branch was already `release`. The project had no deployment yet, and Vercel gave the
+  first one the production slot. With Standard Protection that made the app public at
+  `little-moments-eta.vercel.app` for about a minute, until protection was set to All Deployments.
+  No user data was exposed. Since a production deployment now exists, later `develop` pushes go to
+  Preview. Still check each one: right after a push, read the deployment's `target` with
+  `vercel api "/v6/deployments?projectId=<id>"`. If it says `production`, stop.
 - The folder's `.vercel/` link is gitignored. If `vercel link` adds a `VERCEL_OIDC_TOKEN` to
   `.env.local`, it can be removed — the app doesn't use it.
 
@@ -59,8 +70,8 @@ Never add the Supabase **secret / service_role** key, the database password or t
 secret to Vercel — the frontend never needs them, and the app refuses a secret key.
 **Do not set `BASE_PATH`** on Vercel (it's only for GitHub Pages).
 
-**Settings → Deployment Protection → Vercel Authentication:** enable for **Preview** deployments
-(production stays public once a release exists).
+**Settings → Deployment Protection → Vercel Authentication:** **All Deployments** until the first
+approved public release; then **Standard Protection** (previews protected, production public).
 
 ## Supabase → Authentication → URL Configuration
 
