@@ -20,6 +20,27 @@ local-only app.
 3. Check: **Table Editor** shows `journal_entries`, `journal_photos`, `plans`, `user_settings`, each
    marked **RLS enabled**; **Storage** shows a private bucket `journal-photos`.
 
+### Migration log (applied by hand in the SQL Editor — there is no CLI migration history yet)
+
+| Migration | Live project |
+| --- | --- |
+| `20261022000000_cloud_sync_schema.sql` | applied 2026-10-22 |
+| `20261027000000_prelaunch_hardening.sql` | **not yet applied** — waiting for the owner's approval |
+
+Every migration is safe to run twice (`npm run test:db` runs them twice), so re-running one by
+mistake changes nothing.
+
+### Applying `20261027000000_prelaunch_hardening.sql`
+It changes permissions and the photo upload rule only. No rows or files are touched.
+1. Before you start, keep copies (the Free plan has no automatic backups):
+   **Table Editor** → each of `journal_entries`, `journal_photos`, `plans`, `user_settings` → **Export → CSV**.
+   Then **Storage → journal-photos** → download the files.
+2. **SQL Editor → New query**: type `begin;`, paste the whole file, type `commit;` and **Run**.
+3. Record the date in the table above.
+4. If something goes wrong, run `rollback/20261027000000_prelaunch_hardening.down.sql` the same way. It
+   restores the original upload rule exactly and removes the limit function. Its Part B (commented out)
+   re-grants the removed privileges, but only use it if a problem is traced to them.
+
 ## Testing the security rules
 
 ```bash
