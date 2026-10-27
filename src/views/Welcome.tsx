@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { GoogleMark } from '../components/account/GoogleMark'
 import { LiveMomo } from '../components/momo/LiveMomo'
 import { LangSwitch } from '../components/ui/Nav'
+import { PrivacyLink } from '../components/ui/PrivacyLink'
 import { useI18n, type Key } from '../i18n'
 import { setEntry } from '../lib/entry'
 import { play } from '../lib/sound'
@@ -70,6 +71,7 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
           <p className="text-[12px] leading-relaxed text-faint">{t('welcome.guestNote')}</p>
         </motion.div>
       </main>
+      <footer className="text-center text-[12px] text-muted"><PrivacyLink /></footer>
     </div>
   )
 }

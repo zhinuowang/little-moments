@@ -94,7 +94,7 @@ Vercel address automatically — it must simply be in the Redirect URLs list.
   `https://jcvtizdyqwjiqpvjepna.supabase.co/auth/v1/callback` — unchanged.
 - **Audience → Publishing status:** while **Testing**, only listed test users can sign in. Before a
   public release, choose **Publish app**. With only `openid`, `email`, `profile` no verification
-  review is needed, but Google expects a privacy policy link and app home page in **Branding**
+  review is needed, but Google expects a privacy policy link (`https://<production>/privacy.html`) and app home page in **Branding**
   (an app domain you own is needed for verification; `*.vercel.app` can't be verified).
 
 ## What `vercel.json` adds

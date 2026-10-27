@@ -527,6 +527,10 @@ export const en = {
   'settings.about': 'About',
   'settings.aboutBody': 'A little more magic in ordinary days. No streaks, no scores, no tracking — just Momo and your diary. Works offline once installed.',
   'settings.version': 'Version {v}',
+  'privacy.link': 'Privacy Policy',
+  'settings.dataBodyAccount': 'Your pages, photos, plans and settings are saved in this browser and, while you are signed in, to the cloud for your Google account, so they appear on your other devices too. A backup now and then is still a kind thing to do for future you.',
+  'settings.eraseBodyAccount': 'All pages, photos, plans and settings on this device will be removed from this device. Your cloud copy is not deleted and downloads again the next time this account syncs. Changes not yet saved to the cloud are lost.',
+  'settings.deleteAccount': 'To delete your account and everything saved in the cloud, see “Deleting your account” in the Privacy Policy.',
 } as const satisfies Record<string, string | readonly string[]>
 
 export type Key = keyof typeof en

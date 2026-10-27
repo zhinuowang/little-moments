@@ -7,6 +7,7 @@ import { play } from '../lib/sound'
 import { useApp } from '../store/AppContext'
 import { useAuth } from '../store/AuthContext'
 import { GoogleMark } from '../components/account/GoogleMark'
+import { PrivacyLink } from '../components/ui/PrivacyLink'
 import { SyncStatus } from '../components/ui/SyncStatus'
 import type { MotionPref } from '../types'
 
@@ -40,7 +41,7 @@ function Row({ title, hint, children }: { title: string; hint?: string; children
 }
 
 export function Settings() {
-  const { prefs, setPrefs, toast, reload, entries, plans } = useApp()
+  const { prefs, setPrefs, toast, reload, entries, plans, profile } = useApp()
   const { t, lang, setLang } = useI18n()
   const [name, setName] = useState(prefs.name)
   const [usage, setUsage] = useState<number | null>(null)
@@ -122,7 +123,7 @@ export function Settings() {
       </Section>
 
       <Section title={t('settings.data')}>
-        <p className="text-[14px] leading-relaxed text-ink-2">{t('settings.dataBody')}</p>
+        <p className="text-[14px] leading-relaxed text-ink-2">{t(profile === 'account' ? 'settings.dataBodyAccount' : 'settings.dataBody')}</p>
         <p className="mt-4 text-[13px] text-muted">
           {t('settings.counts', { e: entries.length, p: plans.length })}
           {usage != null ? ` · ${t('settings.usage', { mb: usage.toFixed(1) })}` : ''}
@@ -148,13 +149,14 @@ export function Settings() {
 
       <Section title={t('settings.about')}>
         <p className="text-[14px] leading-relaxed text-ink-2">{t('settings.aboutBody')}</p>
+        <p className="mt-3 text-[13px] text-muted"><PrivacyLink /></p>
         <p className="mt-2 text-[12px] text-faint">{t('settings.version', { v: '0.2' })}</p>
       </Section>
 
       <Confirm
         open={confirmWipe}
         title={t('settings.eraseTitle')}
-        body={t('settings.eraseBody')}
+        body={t(profile === 'account' ? 'settings.eraseBodyAccount' : 'settings.eraseBody')}
         confirmLabel={t('settings.eraseConfirm')}
         onCancel={() => setConfirmWipe(false)}
         onConfirm={async () => {
@@ -190,6 +192,7 @@ function AccountSection() {
           <p className="text-[15px] text-ink">{t('settings.signedInAs', { email: auth.email ?? '…' })}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">{t('settings.accountData')}</p>
           <SyncStatus className="mt-2" />
+          <p className="mt-3 text-[12px] leading-relaxed text-faint">{t('settings.deleteAccount')} <PrivacyLink /></p>
           <button className="btn btn-quiet btn-sm mt-4 -ml-2" onClick={async () => { setUnsynced(await pendingChanges().catch(() => 0)); setConfirmOut(true) }}>{t('settings.signOut')}</button>
         </>
       ) : (

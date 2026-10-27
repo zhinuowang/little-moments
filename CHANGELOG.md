@@ -5,6 +5,19 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Pre-launch: privacy and user rights
+- `public/privacy.html`: bilingual (English / 简体中文) Privacy Policy, a plain page that needs no
+  account and no JavaScript. It covers what is stored and where (Supabase, Oregon), the absence of
+  ads, analytics and tracking, device copies, retention, rights, and a manual account-deletion
+  process that includes private photo files. It is a **draft** until the owner fills in the marked
+  details (operator name, country, contact email, dates, response time).
+- A "Privacy Policy" link on the welcome screen and in Settings → About. Signed-in accounts also
+  see where to request deletion.
+- Settings now describes the signed-in case correctly: data is also saved to the cloud, and
+  "Erase everything on this device" removes only this device's copy.
+- `docs/ACCOUNT-DELETION.md`: the owner's step-by-step deletion runbook (photo files first, then
+  the account, then verification).
+
 ### Vercel deployment preparation
 - `vercel.json`: Vite build into `dist`, `npm ci`, `main` excluded from Vercel, cache rules (no-cache
   for `sw.js`/`index.html`/manifest, immutable hashed assets), security headers and a report-only

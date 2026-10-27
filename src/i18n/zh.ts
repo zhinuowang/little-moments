@@ -514,4 +514,8 @@ export const zh: Record<Key, string | readonly string[]> = {
   'settings.about': '关于',
   'settings.aboutBody': '给平凡的日子多一点点魔法。没有打卡，没有分数，没有追踪——只有 Momo 和你的日记。安装后可以离线使用。',
   'settings.version': '版本 {v}',
+  'privacy.link': '隐私政策',
+  'settings.dataBodyAccount': '你的日记、照片、计划和设置保存在这个浏览器里；登录期间，也会保存到这个 Google 账户的云端，所以在你的其他设备上也能看到。偶尔备份一下，依然是对未来的自己的一份温柔。',
+  'settings.eraseBodyAccount': '这台设备上的所有日记、照片、计划和设置都会从这台设备上移除。云端副本不会被删除，这个账户下次同步时会重新下载。尚未保存到云端的修改会丢失。',
+  'settings.deleteAccount': '如需删除你的账户和云端保存的所有内容，请查看隐私政策中的“删除账户和数据”。',
 }
