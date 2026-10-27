@@ -25,7 +25,7 @@ local-only app.
 | Migration | Live project |
 | --- | --- |
 | `20261022000000_cloud_sync_schema.sql` | applied 2026-10-22 |
-| `20261027000000_prelaunch_hardening.sql` | **not yet applied** — waiting for the owner's approval |
+| `20261027000000_prelaunch_hardening.sql` | applied 2026-10-27 (SQL Editor, in one transaction; verified read-only: privileges revoked, photo limit active, all data checksums unchanged) |
 
 Every migration is safe to run twice (`npm run test:db` runs them twice), so re-running one by
 mistake changes nothing.

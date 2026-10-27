@@ -18,8 +18,8 @@ each released version has a matching Git tag.
 - Migration `20261027000000_prelaunch_hardening.sql` (permissions and one policy only, no data
   changes): signed-in users lose the TRUNCATE, TRIGGER, REFERENCES and MAINTAIN privileges that
   row-level security doesn't cover. Photo uploads are limited to 500 files per account, so one
-  account can't fill the shared storage. **Written and tested locally (48 checks); not yet applied
-  to the live project.**
+  account can't fill the shared storage. Tested locally (48 checks) and **applied to the live project
+  on 2026-10-27**; verified afterwards with every data checksum unchanged.
 - Sync: when an account reaches the photo limit, pages with new photos stay on the device, every
   other change still syncs, and a clear message appears instead of endless retries.
 - Deleting a page or plan now also clears its contents in the cloud, leaving only the deletion
