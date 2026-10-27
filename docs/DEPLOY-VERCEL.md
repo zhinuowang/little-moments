@@ -11,13 +11,26 @@ Vercel deploys every push. To keep the rule *"save every version, publish only w
 | --- | --- | --- |
 | `develop` | **Preview** deployments (one per push, plus a stable branch URL) | Only you — protected by Vercel Authentication |
 | `release` | **Production** (the public site) | Everyone |
-| `main` | Not deployed on Vercel (`vercel.json → git.deploymentEnabled.main = false`) | — (GitHub Pages only) |
+| `main` | Not deployed on Vercel (Ignored Build Step; `vercel.json → git.deploymentEnabled.main = false`) | — (GitHub Pages only) |
 
-The `release` branch does not exist until the first approved public release. Releasing = after the
-owner's explicit approval, `git push origin <approved develop commit>:refs/heads/release`
-(fast-forward only, never force). Rolling back = Vercel → Deployments → previous production
+Releasing = after the owner's explicit approval of that commit,
+`git push origin <approved develop commit>:refs/heads/release` (fast-forward only, never force). Rolling back = Vercel → Deployments → previous production
 deployment → **Instant Rollback**, then point `release` at the matching commit with a normal push of
 a revert commit.
+
+## Current setup (2026-10-27)
+
+- Project `little-moments` in team `nora-740d`, connected to `zhinuowang/little-moments`.
+- **Production Branch:** `release` (created at `a1aa56d` with the owner's approval; nothing public yet).
+- **Ignored Build Step:** builds only `develop` and `release`:
+  `if [ "$VERCEL_GIT_COMMIT_REF" = "develop" ] || [ "$VERCEL_GIT_COMMIT_REF" = "release" ]; then exit 1; else exit 0; fi`
+- **Deployment Protection:** Vercel Authentication on *all deployments except custom domains*
+  (so `little-moments-eta.vercel.app` is protected too). Change to *Preview only* when a public
+  release is approved.
+- Domains: production `little-moments-eta.vercel.app`; stable `develop` preview
+  `little-moments-git-develop-nora-740d.vercel.app`.
+- The folder's `.vercel/` link is gitignored. If `vercel link` adds a `VERCEL_OIDC_TOKEN` to
+  `.env.local`, it can be removed — the app doesn't use it.
 
 ## Vercel Dashboard settings
 
