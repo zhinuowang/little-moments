@@ -32,7 +32,7 @@ each released version has a matching Git tag.
   process that includes private photo files. Operator details are confirmed: Little Moments, operated
   from Canada, with cloud data hosted in the United States (Supabase, Oregon), and contact
   littlemomentapp.support@gmail.com. Agreed terms: account deletion within 30 days (subject to applicable law), and use by people
-  aged 16 and over. It stays a **draft** only until the effective date (the public launch date) is filled in.
+  aged 16 and over. Effective 27 October 2026, the public launch date; the draft banner is removed.
 - A "Privacy Policy" link on the welcome screen and in Settings → About. Signed-in accounts also
   see where to request deletion.
 - Settings now describes the signed-in case correctly: data is also saved to the cloud, and
