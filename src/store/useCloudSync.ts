@@ -52,8 +52,13 @@ export function useCloudSync(opts: {
       }), 45_000)
       attempt.current = 0
       if (r.applied > 0 || r.pushed > 0) hooks.current.onApplied()
-      setState({ status: r.pending === 0 ? 'synced' : 'waiting', pending: r.pending, failure: null, lastSynced: Date.now() })
-      if (r.pending > 0) again.current = true
+      if (r.blocked) {
+        // nothing a retry can fix: say so once and wait for the next change or visit
+        setState({ status: 'error', pending: r.pending, failure: r.blocked, lastSynced: Date.now() })
+      } else {
+        setState({ status: r.pending === 0 ? 'synced' : 'waiting', pending: r.pending, failure: null, lastSynced: Date.now() })
+        if (r.pending > 0) again.current = true
+      }
     } catch (err) {
       const failure: SyncFailure = err instanceof SyncError ? err.kind : (err as Error)?.message === 'timeout' || !navigator.onLine ? 'offline' : 'server'
       if (failure === 'switched') { running.current = false; return } // signed out mid-sync: stop quietly

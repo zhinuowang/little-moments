@@ -76,6 +76,8 @@ await db.exec(`
   grant execute on function storage.foldername(text) to anon, authenticated;
 
   grant usage on schema public to anon, authenticated;
+  -- like Supabase: new tables in public start with every privilege for these roles
+  alter default privileges in schema public grant all on tables to anon, authenticated;
   insert into auth.users values ('${A}'), ('${B}');
 `)
 
@@ -134,6 +136,43 @@ await expectOk('A edits their page (client tries to fake rev)', `update journal_
 await expectError('A can\'t hand a page to B', `update journal_entries set user_id = '${B}' where id = 'e1'`, [], /row-level security|cannot change owner/)
 await expectError('oversized page is refused', `insert into journal_entries (id, entry_date, data, client_updated_at) values ('big', '2026-10-21', jsonb_build_object('text', repeat('x', 70000)), now())`, [], /check constraint/)
 await expectError('non-image photo type is refused', `insert into journal_photos (id, storage_path, mime_type, bytes, client_updated_at) values ('p3', '${A}/p3', 'text/html', 10, now())`, [], /check constraint/)
+
+await expectRows('A deletes a page: the marker keeps no words', `update journal_entries set data = '{}', deleted_at = now() where id = 'e1'`, 1)
+{
+  const r = await db.query(`select data, deleted_at is not null as gone from journal_entries where id = 'e1'`)
+  const row = r.rows[0]
+  row?.gone && JSON.stringify(row.data) === '{}' ? ok('deleted page is only a marker') : bad('deleted page marker', JSON.stringify(row))
+}
+
+console.log('\nSigned-in users hold only the privileges row-level security covers')
+{
+  const maint = (await db.query(`select current_setting('server_version_num')::int >= 170000 as v`)).rows[0].v
+  const extra = ['TRUNCATE', 'TRIGGER', 'REFERENCES', ...(maint ? ['MAINTAIN'] : [])]
+  for (const t of ['journal_entries', 'journal_photos', 'plans', 'user_settings']) {
+    const r = await db.query(`select ${extra.map((p) => `has_table_privilege('authenticated', 'public.${t}', '${p}') as "${p}"`).join(', ')},
+      has_table_privilege('authenticated', 'public.${t}', 'SELECT, INSERT, UPDATE, DELETE') as crud,
+      has_table_privilege('anon', 'public.${t}', 'SELECT') as anon_select`)
+    const row = r.rows[0]
+    const held = extra.filter((p) => row[p])
+    held.length === 0 && row.crud && !row.anon_select
+      ? ok(`${t}: only select/insert/update/delete for signed-in users, nothing for anon`)
+      : bad(`${t} privileges`, JSON.stringify(row))
+  }
+}
+await as(A)
+await expectError('A can\'t truncate a table', `truncate journal_entries`, [], /permission denied/)
+
+console.log('\nEach account can store at most 500 photo files')
+await as('admin')
+await db.exec(`insert into storage.objects (bucket_id, name, owner) select 'journal-photos', '${B}/fill' || g, '${B}' from generate_series(1, 499) g`)
+await as(B)
+await expectOk('B uploads photo 500', `insert into storage.objects (bucket_id, name, owner) values ('journal-photos', '${B}/p500', '${B}')`)
+await expectError('B\'s photo 501 is refused', `insert into storage.objects (bucket_id, name, owner) values ('journal-photos', '${B}/p501', '${B}')`, [], /row-level security/)
+await expectRows('B still sees all 500 of their files', `select * from storage.objects`, 500)
+await as(A)
+await expectOk('A is unaffected by B\'s limit', `insert into storage.objects (bucket_id, name, owner) values ('journal-photos', '${A}/p2', '${A}')`)
+await as('admin')
+await db.exec(`delete from storage.objects where name like '${B}/%'`)
 
 console.log('\nDeleting an account removes only that account\'s rows')
 await as('admin')

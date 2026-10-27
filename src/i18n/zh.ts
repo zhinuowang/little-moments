@@ -468,6 +468,7 @@ export const zh: Record<Key, string | readonly string[]> = {
   'welcome.guestNote': '访客模式下，所有内容都保存在这台设备上。',
   'settings.accountData': '这个 Google 账户的日记、照片、计划和设置都会保存到云端。',
   'settings.guestSeparate': '登录后会打开属于你账户的独立日记。这里的访客日记会原样留在这台设备上。',
+  'sync.photoLimit': '这个账户在云端的照片已达到 500 张上限。带有新照片的日记会安全地保留在这台设备上。',
   'sync.saved': '已保存到云端',
   'sync.syncing': '同步中……',
   'sync.waiting': '已保存在本机 · 等待同步',

@@ -481,6 +481,7 @@ export const en = {
   'welcome.guestNote': 'As a guest, everything stays on this device.',
   'settings.accountData': 'Your diary, photos, plans and settings are saved to the cloud for this Google account.',
   'settings.guestSeparate': 'Signing in opens a separate diary for your account. This guest diary stays here on this device, untouched.',
+  'sync.photoLimit': 'This account has reached its limit of 500 photos in the cloud. Pages with new photos stay safely on this device.',
   'sync.saved': 'Saved to cloud',
   'sync.syncing': 'Syncing…',
   'sync.waiting': 'Saved on this device · waiting to sync',

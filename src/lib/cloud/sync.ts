@@ -18,12 +18,16 @@ import { uid } from '../util'
  * delete never beats a newer edit. Settings: the most recently changed version wins.
  */
 
-export type SyncFailure = 'offline' | 'auth' | 'server' | 'switched'
+export type SyncFailure = 'offline' | 'auth' | 'server' | 'switched' | 'quota'
 export class SyncError extends Error {
   constructor(public kind: SyncFailure, message: string) { super(message) }
 }
 
-export interface SyncResult { applied: number; pushed: number; pending: number }
+export interface SyncResult {
+  applied: number; pushed: number; pending: number
+  /** some pages couldn't upload because this account reached its photo limit; they stay here */
+  blocked?: 'quota'
+}
 
 export interface SyncHooks {
   /** settings arrived from another device and were saved locally */
@@ -103,15 +107,22 @@ export async function syncAccount(sb: SupabaseClient, userId: string, dbName: st
   applied += await pullEntries(sb)
   await adoptLocal(sb)
 
+  let blocked: SyncResult['blocked']
   for (const item of await syncDb.outbox()) {
-    if (item.table === 'plans') await (item.op === 'delete' ? pushPlanDelete(sb, item) : pushPlan(sb, item))
-    else if (item.table === 'entries') await (item.op === 'delete' ? pushEntryDelete(sb, item) : pushEntry(sb, userId, item))
-    else if (item.table === 'settings') await pushSettings(sb, userId, item, hooks)
-    else await syncDb.dropOutbox(item.table, item.id) // photos travel with their page
-    pushed++
+    try {
+      if (item.table === 'plans') await (item.op === 'delete' ? pushPlanDelete(sb, item) : pushPlan(sb, item))
+      else if (item.table === 'entries') await (item.op === 'delete' ? pushEntryDelete(sb, item) : pushEntry(sb, userId, item))
+      else if (item.table === 'settings') await pushSettings(sb, userId, item, hooks)
+      else await syncDb.dropOutbox(item.table, item.id) // photos travel with their page
+      pushed++
+    } catch (err) {
+      // photo limit reached: this page stays queued here; everything else still syncs
+      if (err instanceof SyncError && err.kind === 'quota') { blocked = 'quota'; continue }
+      throw err
+    }
   }
   applied += await fetchMissingPhotos(sb, userId)
-  return { applied, pushed, pending: await syncDb.outboxCount() }
+  return { applied, pushed, pending: await syncDb.outboxCount(), blocked }
 }
 
 /* ───────────── pull ───────────── */
@@ -241,7 +252,8 @@ async function resolvePlanConflict(sb: SupabaseClient, item: OutboxItem, local: 
 
 async function pushPlanDelete(sb: SupabaseClient, item: OutboxItem) {
   if (item.baseRev === null) { await syncDb.dropOutbox('plans', item.id); return }
-  const { data, error } = await sb.from('plans').update({ deleted_at: new Date().toISOString(), client_updated_at: new Date(item.at).toISOString() }).eq('id', item.id).eq('rev', item.baseRev).select('rev')
+  // a deletion keeps only the marker other devices need, not the plan itself
+  const { data, error } = await sb.from('plans').update({ data: {}, deleted_at: new Date().toISOString(), client_updated_at: new Date(item.at).toISOString() }).eq('id', item.id).eq('rev', item.baseRev).select('rev')
   if (error) fail(error)
   if ((data ?? []).length === 1) return syncDb.confirmOutbox(item, (data as { rev: number }[])[0].rev)
   const server = await fetchPlan(sb, item.id)
@@ -336,6 +348,11 @@ async function ensurePhotos(sb: SupabaseClient, userId: string, e: JournalEntry)
     const up = await sb.storage.from('journal-photos').upload(path, rec.blob, { contentType: type, upsert: false })
     if (up.error) {
       const m = `${(up.error as { statusCode?: string }).statusCode ?? ''} ${up.error.message}`
+      if (/row-level security/i.test(m)) {
+        // signed in, this is the only upload rule an owner can fail; without a session it's sign-in
+        if (!(await sb.auth.getSession()).data.session) throw new SyncError('auth', 'session ended')
+        throw new SyncError('quota', 'photo limit reached')
+      }
       if (!/409|already exists|duplicate/i.test(m)) fail({ message: up.error.message })
     }
     const row = await sb.from('journal_photos').insert({ id: pid, storage_path: path, mime_type: type, bytes: rec.blob.size, client_updated_at: new Date().toISOString() })
@@ -386,7 +403,8 @@ async function resolveEntryConflict(sb: SupabaseClient, item: OutboxItem, local:
 
 async function pushEntryDelete(sb: SupabaseClient, item: OutboxItem) {
   if (item.baseRev === null) { await syncDb.dropOutbox('entries', item.id); return }
-  const { data, error } = await sb.from('journal_entries').update({ deleted_at: new Date().toISOString(), client_updated_at: new Date(item.at).toISOString() }).eq('id', item.id).eq('rev', item.baseRev).select('rev')
+  // a deletion keeps only the marker other devices need, not the page's words
+  const { data, error } = await sb.from('journal_entries').update({ data: {}, deleted_at: new Date().toISOString(), client_updated_at: new Date(item.at).toISOString() }).eq('id', item.id).eq('rev', item.baseRev).select('rev')
   if (error) fail(error)
   if ((data ?? []).length === 1) return syncDb.confirmOutbox(item, (data as { rev: number }[])[0].rev)
   const server = await fetchEntry(sb, item.id)

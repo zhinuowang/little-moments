@@ -5,6 +5,17 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Pre-launch: security and storage limits
+- Migration `20261027000000_prelaunch_hardening.sql` (permissions and one policy only, no data
+  changes): signed-in users lose the TRUNCATE, TRIGGER, REFERENCES and MAINTAIN privileges that
+  row-level security doesn't cover. Photo uploads are limited to 500 files per account, so one
+  account can't fill the shared storage. **Written and tested locally (48 checks); not yet applied
+  to the live project.**
+- Sync: when an account reaches the photo limit, pages with new photos stay on the device, every
+  other change still syncs, and a clear message appears instead of endless retries.
+- Deleting a page or plan now also clears its contents in the cloud, leaving only the deletion
+  marker that other devices need. Records deleted earlier are not changed.
+
 ### Pre-launch: privacy and user rights
 - `public/privacy.html`: bilingual (English / 简体中文) Privacy Policy, a plain page that needs no
   account and no JavaScript. It covers what is stored and where (Supabase, Oregon), the absence of
