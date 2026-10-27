@@ -5,6 +5,15 @@ each released version has a matching Git tag.
 
 ## [Unreleased]
 
+### Pre-launch: offline after the first visit
+- The service worker (`little-moments-v2`) now caches the entry script and stylesheet while
+  installing, plus the fonts and chunks the first visit already loaded, so the app opens offline
+  after a single visit. Before, the first offline reload showed a blank page. Tested in headless
+  Chrome with the server stopped: home, Diary and the privacy page load.
+- Cache lookups ignore `Vary`, so copies the worker fetched itself match the page's requests.
+- Opening the privacy page no longer replaces the cached app shell, and the privacy page itself is
+  available offline.
+
 ### Pre-launch: security and storage limits
 - Migration `20261027000000_prelaunch_hardening.sql` (permissions and one policy only, no data
   changes): signed-in users lose the TRUNCATE, TRIGGER, REFERENCES and MAINTAIN privileges that
